@@ -1,0 +1,2652 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEXUS — Explore Beyond Information</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            void: '#050505',
+            charcoal: {
+              950: '#090B10',
+              900: '#0F1219',
+              800: '#161B26',
+              700: '#212838'
+            },
+            nexus: {
+              blue: '#568BFF',
+              violet: '#8B5CF6',
+              cyan: '#22D3EE',
+              muted: '#8E95A5'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #050505;
+      color: #ffffff;
+      overflow: hidden;
+      font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      cursor: grab;
+    }
+    #canvas-container:active { cursor: grabbing; }
+    .glass-panel {
+      background: rgba(9, 11, 16, 0.78);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      box-shadow: 0 12px 42px rgba(0, 0, 0, 0.65);
+    }
+    .glass-subtle {
+      background: rgba(15, 18, 25, 0.65);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glow-border:focus-within {
+      border-color: rgba(86, 139, 255, 0.55);
+      box-shadow: 0 0 0 1px rgba(86, 139, 255, 0.35), 0 0 28px rgba(86, 139, 255, 0.14);
+    }
+    .thin-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+    .thin-scroll::-webkit-scrollbar-track { background: transparent; }
+    .thin-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 3px; }
+    .thin-scroll::-webkit-scrollbar-thumb:hover { background: rgba(86, 139, 255, 0.45); }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+    .pulse-dot { animation: pulseDot 2.2s ease-in-out infinite; }
+    .fade-in { animation: fadeIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-void text-white select-none">
+
+  <!-- Full-Screen 3D WebGL Universe Canvas -->
+  <div id="canvas-container" aria-label="Interactive 3D Universe"></div>
+
+  <!-- Hover Tooltip for 3D Objects -->
+  <div id="hover-tooltip" class="pointer-events-none fixed z-30 hidden -translate-x-1/2 -translate-y-full pb-3 transition-opacity duration-150">
+    <div class="glass-panel px-3 py-1.5 text-center">
+      <div id="tooltip-name" class="font-display text-xs font-medium tracking-wide text-white whitespace-nowrap"></div>
+      <div id="tooltip-kind" class="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-cyan"></div>
+    </div>
+  </div>
+
+  <!-- Top Navigation Bar -->
+  <header id="top-nav" class="fixed inset-x-0 top-0 z-40 border-b border-white/[0.07] bg-void/75 backdrop-blur-md">
+    <div class="mx-auto flex h-14 max-w-[1600px] items-center justify-between px-4 sm:px-6 gap-3">
+      <!-- Brand -->
+      <button id="btn-home" type="button" class="group flex items-center gap-2.5 text-left focus:outline-none shrink-0">
+        <span class="relative flex h-7 w-7 items-center justify-center border border-white/15 bg-white/[0.03] transition group-hover:border-nexus-blue/60">
+          <span class="h-2 w-2 rounded-full bg-nexus-blue shadow-[0_0_10px_rgba(86,139,255,0.9)]"></span>
+          <span class="absolute inset-1 rounded-full border border-nexus-cyan/30"></span>
+        </span>
+        <span class="flex flex-col leading-none">
+          <span class="font-display text-xs font-semibold tracking-[0.26em] text-white">NEXUS</span>
+          <span class="mt-0.5 font-mono text-[9px] tracking-[0.14em] text-nexus-muted hidden sm:inline">SPATIAL OS</span>
+        </span>
+      </button>
+
+      <!-- Active Universe Title & Search (visible in Explorer mode) -->
+      <div id="nav-explorer-bar" class="hidden flex-1 max-w-md items-center gap-2">
+        <div class="relative flex-1">
+          <i data-lucide="search" class="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-nexus-muted"></i>
+          <input
+            id="universe-search-input"
+            type="text"
+            placeholder="Search planets, concepts, subtopics..."
+            autocomplete="off"
+            class="w-full border border-white/10 bg-charcoal-950/90 py-1.5 pl-8 pr-3 text-xs text-white placeholder:text-nexus-muted/70 focus:border-nexus-blue/60 focus:outline-none"
+          />
+          <div id="search-results-dropdown" class="glass-panel thin-scroll absolute left-0 right-0 top-full mt-1 hidden max-h-60 overflow-y-auto z-50"></div>
+        </div>
+      </div>
+
+      <!-- Primary Actions -->
+      <nav class="flex items-center gap-1.5 sm:gap-2 shrink-0" aria-label="Primary">
+        <button id="btn-nav-multiverse" type="button" class="inline-flex items-center gap-1.5 border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-nexus-muted transition hover:border-white/25 hover:text-white">
+          <i data-lucide="layers" class="h-3.5 w-3.5 text-nexus-cyan"></i>
+          <span class="hidden md:inline">Multiverse</span>
+        </button>
+        <button id="btn-nav-studio" type="button" class="hidden inline-flex items-center gap-1.5 border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-nexus-muted transition hover:border-nexus-violet/50 hover:text-white">
+          <i data-lucide="sliders" class="h-3.5 w-3.5 text-nexus-violet"></i>
+          <span class="hidden sm:inline">Studio</span>
+        </button>
+        <button id="btn-nav-ai" type="button" class="hidden inline-flex items-center gap-1.5 border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-nexus-muted transition hover:border-nexus-blue/50 hover:text-white">
+          <i data-lucide="sparkles" class="h-3.5 w-3.5 text-nexus-blue"></i>
+          <span class="hidden sm:inline">AI Guide</span>
+        </button>
+        <button id="btn-nav-history" type="button" class="hidden inline-flex items-center gap-1.5 border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-xs text-nexus-muted transition hover:border-white/25 hover:text-white" title="Time Travel — Version History">
+          <i data-lucide="history" class="h-3.5 w-3.5"></i>
+          <span class="hidden lg:inline">Versions</span>
+        </button>
+        <button id="btn-nav-create" type="button" class="inline-flex items-center gap-1.5 border border-nexus-blue/50 bg-nexus-blue/90 px-3 py-1.5 text-xs font-medium text-void transition hover:bg-nexus-blue">
+          <i data-lucide="plus" class="h-3.5 w-3.5"></i>
+          <span>New Universe</span>
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ===================================================================== -->
+  <!-- VIEW A: CINEMATIC LANDING OVERLAY                                     -->
+  <!-- ===================================================================== -->
+  <section id="landing-overlay" class="fixed inset-0 z-20 flex flex-col items-center justify-center overflow-y-auto px-4 pb-12 pt-20">
+    <div class="pointer-events-none fixed inset-0 bg-gradient-to-b from-void/65 via-void/35 to-void/85"></div>
+    <div class="relative z-10 mx-auto flex w-full max-w-4xl flex-col items-center text-center fade-in">
+      <div class="mb-6 inline-flex items-center gap-2 border border-white/10 bg-charcoal-950/75 px-3.5 py-1.5 backdrop-blur-md">
+        <span class="h-1.5 w-1.5 rounded-full bg-nexus-cyan pulse-dot shadow-[0_0_8px_rgba(34,211,238,0.85)]"></span>
+        <span class="font-mono text-[10px] uppercase tracking-[0.22em] text-nexus-muted">AI-Powered 3D Interactive Digital Universe</span>
+      </div>
+
+      <h1 class="font-display text-4xl font-semibold tracking-tight text-white sm:text-6xl md:text-7xl">
+        Explore Beyond Information.
+      </h1>
+
+      <p class="mt-4 max-w-2xl text-sm leading-relaxed text-nexus-muted sm:text-base">
+        Describe any subject and NEXUS constructs a navigable 3D universe of glowing planets, orbital subtopics, interconnected knowledge lines, and a contextual AI guide.
+      </p>
+
+      <!-- Universe Creation Input -->
+      <form id="landing-form" class="mt-8 w-full max-w-2xl" novalidate>
+        <div class="glass-panel glow-border p-1.5 transition">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <input
+              id="landing-prompt-input"
+              type="text"
+              maxlength="240"
+              placeholder="Create a universe about Artificial Intelligence..."
+              class="w-full bg-transparent px-3.5 py-3 text-sm text-white placeholder:text-nexus-muted/70 focus:outline-none"
+            />
+            <button
+              type="submit"
+              class="inline-flex shrink-0 items-center justify-center gap-2 border border-nexus-blue/50 bg-nexus-blue px-5 py-3 text-xs font-semibold tracking-wide text-void transition hover:bg-[#6E9CFF]"
+            >
+              <i data-lucide="sparkles" class="h-3.5 w-3.5"></i>
+              Generate Universe
+            </button>
+          </div>
+        </div>
+        <p id="landing-error" class="mt-2 hidden text-left text-xs text-rose-400"></p>
+      </form>
+
+      <!-- Secondary Explore CTA -->
+      <div class="mt-5 flex flex-wrap items-center justify-center gap-3">
+        <button id="btn-explore-now" type="button" class="glass-subtle inline-flex items-center gap-2 px-4 py-2 text-xs font-medium text-white transition hover:border-nexus-cyan/50 hover:bg-white/[0.06]">
+          <i data-lucide="compass" class="h-3.5 w-3.5 text-nexus-cyan"></i>
+          Explore Active Universe
+          <i data-lucide="arrow-right" class="h-3.5 w-3.5 text-nexus-muted"></i>
+        </button>
+      </div>
+
+      <!-- Example Prompts Grid -->
+      <div class="mt-10 w-full max-w-4xl">
+        <div class="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-nexus-muted">Seed Coordinates — Select a Universe</div>
+        <div id="example-prompts-grid" class="grid grid-cols-1 gap-2.5 text-left sm:grid-cols-2 lg:grid-cols-3"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================================== -->
+  <!-- GENERATION STAGE OVERLAY (Real Pipeline Stages)                       -->
+  <!-- ===================================================================== -->
+  <div id="generation-overlay" class="fixed inset-0 z-50 hidden items-center justify-center bg-void/85 backdrop-blur-md px-4">
+    <div class="glass-panel w-full max-w-md p-6">
+      <div class="flex items-center gap-3">
+        <div class="h-5 w-5 animate-spin rounded-full border-2 border-nexus-blue border-t-transparent"></div>
+        <div>
+          <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-nexus-cyan">Universe Synthesis</div>
+          <h2 id="gen-title" class="font-display text-base font-medium text-white">Constructing spatial graph...</h2>
+        </div>
+      </div>
+      <div id="gen-stages" class="mt-5 space-y-2.5 font-mono text-xs"></div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- EXPLORER HUD (Bottom-left Telemetry + Bottom-center Camera Controls)  -->
+  <!-- ===================================================================== -->
+  <div id="explorer-hud" class="pointer-events-none fixed inset-0 z-10 hidden">
+    <!-- Top-left Universe Info Pill -->
+    <div class="pointer-events-auto fixed left-4 top-[72px] max-w-xs sm:left-6">
+      <div class="glass-panel px-3.5 py-2.5">
+        <div class="flex items-center justify-between gap-3">
+          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-cyan">Active Universe</span>
+          <button id="btn-favorite-universe" type="button" class="text-nexus-muted transition hover:text-amber-400" title="Toggle Favorite">
+            <i data-lucide="star" class="h-3.5 w-3.5"></i>
+          </button>
+        </div>
+        <h2 id="hud-universe-name" class="mt-0.5 font-display text-sm font-semibold text-white truncate"></h2>
+        <div id="hud-universe-stats" class="mt-1 font-mono text-[10px] text-nexus-muted"></div>
+      </div>
+    </div>
+
+    <!-- Bottom-center Camera & Navigation Controls -->
+    <div class="pointer-events-auto fixed bottom-5 left-1/2 -translate-x-1/2">
+      <div class="glass-panel flex items-center gap-1 px-2 py-1.5">
+        <button id="btn-cam-reset" type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-nexus-muted transition hover:bg-white/[0.06] hover:text-white" title="Reset Full Universe View (R)">
+          <i data-lucide="maximize-2" class="h-3.5 w-3.5"></i>
+          <span class="hidden sm:inline">Full Universe</span>
+        </button>
+        <div class="h-4 w-px bg-white/10"></div>
+        <button id="btn-cam-zoom-in" type="button" class="p-1.5 text-nexus-muted transition hover:bg-white/[0.06] hover:text-white" title="Zoom In">
+          <i data-lucide="zoom-in" class="h-3.5 w-3.5"></i>
+        </button>
+        <button id="btn-cam-zoom-out" type="button" class="p-1.5 text-nexus-muted transition hover:bg-white/[0.06] hover:text-white" title="Zoom Out">
+          <i data-lucide="zoom-out" class="h-3.5 w-3.5"></i>
+        </button>
+        <div class="h-4 w-px bg-white/10"></div>
+        <button id="btn-toggle-orbit" type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-nexus-cyan transition hover:bg-white/[0.06]" title="Toggle Orbital Motion">
+          <i data-lucide="orbit" class="h-3.5 w-3.5"></i>
+          <span class="hidden sm:inline" id="orbit-toggle-label">Orbit: On</span>
+        </button>
+        <div class="h-4 w-px bg-white/10"></div>
+        <button id="btn-toggle-lines" type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs text-nexus-blue transition hover:bg-white/[0.06]" title="Toggle Connections">
+          <i data-lucide="git-branch" class="h-3.5 w-3.5"></i>
+          <span class="hidden sm:inline" id="lines-toggle-label">Links: On</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Bottom-left Hint -->
+    <div class="pointer-events-none fixed bottom-5 left-6 hidden lg:block">
+      <div class="font-mono text-[10px] tracking-wider text-nexus-muted/75">
+        DRAG TO ORBIT · SCROLL TO ZOOM · CLICK PLANET TO INSPECT · DOUBLE-CLICK TO FOCUS
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- VIEW D: PLANET INFORMATION PANEL (Right Slide-Over)                   -->
+  <!-- ===================================================================== -->
+  <aside id="planet-panel" class="glass-panel thin-scroll fixed bottom-4 right-4 top-[72px] z-30 hidden w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden sm:right-6">
+    <div class="flex items-start justify-between border-b border-white/[0.08] p-4">
+      <div class="min-w-0 pr-2">
+        <div class="flex items-center gap-2">
+          <span id="panel-color-dot" class="h-2.5 w-2.5 rounded-full shrink-0"></span>
+          <span id="panel-kind-badge" class="font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-cyan">PLANET</span>
+        </div>
+        <h3 id="panel-title" class="mt-1 font-display text-lg font-semibold text-white truncate"></h3>
+      </div>
+      <div class="flex items-center gap-1 shrink-0">
+        <button id="btn-panel-focus" type="button" class="p-1.5 text-nexus-muted transition hover:bg-white/[0.06] hover:text-white" title="Focus Camera on Object">
+          <i data-lucide="crosshair" class="h-4 w-4"></i>
+        </button>
+        <button id="btn-panel-close" type="button" class="p-1.5 text-nexus-muted transition hover:bg-white/[0.06] hover:text-white" title="Close Panel">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="thin-scroll flex-1 space-y-5 overflow-y-auto p-4 text-xs">
+      <div>
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-muted">Overview</div>
+        <p id="panel-description" class="mt-1.5 leading-relaxed text-white/90"></p>
+      </div>
+
+      <div>
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-muted">Core Concepts</div>
+        <div id="panel-concepts" class="mt-2 flex flex-wrap gap-1.5"></div>
+      </div>
+
+      <div id="panel-subtopics-section">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-muted">Orbital Subtopics</span>
+          <span id="panel-subtopics-count" class="font-mono text-[10px] text-nexus-muted"></span>
+        </div>
+        <div id="panel-subtopics-list" class="mt-2 space-y-1.5"></div>
+      </div>
+
+      <div id="panel-connections-section">
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-muted">Connected Nodes</div>
+        <div id="panel-connections-list" class="mt-2 space-y-1.5"></div>
+      </div>
+
+      <div class="border border-white/[0.08] bg-white/[0.02] p-3">
+        <div class="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-blue">
+          <i data-lucide="cpu" class="h-3 w-3"></i>
+          AI Synthesis
+        </div>
+        <p id="panel-ai-explanation" class="mt-1.5 leading-relaxed text-nexus-muted"></p>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-2 border-t border-white/[0.08] p-3 bg-charcoal-950/80">
+      <button id="btn-expand-topic" type="button" class="inline-flex items-center justify-center gap-1.5 border border-nexus-violet/45 bg-nexus-violet/15 px-3 py-2 text-xs font-medium text-white transition hover:bg-nexus-violet/25">
+        <i data-lucide="git-fork" class="h-3.5 w-3.5 text-nexus-violet"></i>
+        Expand Topic
+      </button>
+      <button id="btn-ask-ai" type="button" class="inline-flex items-center justify-center gap-1.5 border border-nexus-blue/50 bg-nexus-blue px-3 py-2 text-xs font-semibold text-void transition hover:bg-[#6E9CFF]">
+        <i data-lucide="sparkles" class="h-3.5 w-3.5"></i>
+        Ask AI Guide
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- VIEW E: CONTEXTUAL AI ASSISTANT DRAWER                                -->
+  <!-- ===================================================================== -->
+  <aside id="ai-drawer" class="glass-panel fixed bottom-4 right-4 top-[72px] z-30 hidden w-[calc(100vw-2rem)] max-w-md flex-col overflow-hidden sm:right-6">
+    <div class="flex items-center justify-between border-b border-white/[0.08] p-4">
+      <div>
+        <div class="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-blue">
+          <i data-lucide="sparkles" class="h-3 w-3"></i>
+          NEXUS Contextual Assistant
+        </div>
+        <div id="ai-context-label" class="mt-0.5 text-xs text-nexus-muted truncate max-w-[260px]"></div>
+      </div>
+      <div class="flex items-center gap-1">
+        <button id="btn-voice-speak" type="button" class="p-1.5 text-nexus-muted transition hover:bg-white/[0.06] hover:text-white" title="Toggle Spoken Responses">
+          <i data-lucide="volume-2" class="h-4 w-4"></i>
+        </button>
+        <button id="btn-ai-close" type="button" class="p-1.5 text-nexus-muted transition hover:bg-white/[0.06] hover:text-white" title="Close Assistant">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="ai-messages" class="thin-scroll flex-1 space-y-3 overflow-y-auto p-4 text-xs"></div>
+
+    <!-- Quick Contextual Prompts -->
+    <div id="ai-quick-prompts" class="flex gap-1.5 overflow-x-auto border-t border-white/[0.06] px-3 py-2 thin-scroll"></div>
+
+    <form id="ai-form" class="flex items-center gap-2 border-t border-white/[0.08] p-3 bg-charcoal-950/90">
+      <button id="btn-voice-mic" type="button" class="border border-white/10 bg-white/[0.03] p-2 text-nexus-muted transition hover:border-nexus-cyan/50 hover:text-white" title="Voice Input">
+        <i data-lucide="mic" class="h-4 w-4"></i>
+      </button>
+      <input
+        id="ai-input"
+        type="text"
+        placeholder="Ask about this planet or type 'Expand ...'"
+        autocomplete="off"
+        class="flex-1 border border-white/10 bg-void/90 px-3 py-2 text-xs text-white placeholder:text-nexus-muted/70 focus:border-nexus-blue/60 focus:outline-none"
+      />
+      <button type="submit" class="border border-nexus-blue/50 bg-nexus-blue px-3 py-2 text-xs font-semibold text-void transition hover:bg-[#6E9CFF]">
+        Send
+      </button>
+    </form>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- VIEW F: UNIVERSE CREATOR STUDIO (Left Slide-Over)                     -->
+  <!-- ===================================================================== -->
+  <aside id="studio-drawer" class="glass-panel fixed bottom-4 left-4 top-[72px] z-30 hidden w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden sm:left-6">
+    <div class="flex items-center justify-between border-b border-white/[0.08] p-4">
+      <div>
+        <div class="font-mono text-[10px] uppercase tracking-[0.18em] text-nexus-violet">Creator Studio</div>
+        <h3 class="mt-0.5 font-display text-sm font-semibold text-white">Edit Universe Architecture</h3>
+      </div>
+      <div class="flex items-center gap-1">
+        <button id="btn-studio-undo" type="button" class="p-1.5 text-nexus-muted transition hover:bg-white/[0.06] hover:text-white disabled:opacity-30" title="Undo">
+          <i data-lucide="undo-2" class="h-4 w-4"></i>
+        </button>
+        <button id="btn-studio-redo" type="button" class="p-1.5 text-nexus-muted transition hover:bg-white/[0.06] hover:text-white disabled:opacity-30" title="Redo">
+          <i data-lucide="redo-2" class="h-4 w-4"></i>
+        </button>
+        <button id="btn-studio-close" type="button" class="p-1.5 text-nexus-muted transition hover:bg-white/[0.06] hover:text-white" title="Close Studio">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="thin-scroll flex-1 space-y-5 overflow-y-auto p-4 text-xs">
+      <!-- Selected Object Editor -->
+      <div id="studio-selected-section" class="space-y-3 border border-white/[0.08] bg-white/[0.02] p-3">
+        <div class="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-cyan">Selected Object</div>
+        <div id="studio-no-selection" class="text-nexus-muted">Click any planet in the 3D scene to rename, recolor, connect, or remove it.</div>
+        <div id="studio-edit-fields" class="hidden space-y-3">
+          <div>
+            <label for="studio-name-input" class="block font-mono text-[10px] text-nexus-muted">Name</label>
+            <input id="studio-name-input" type="text" maxlength="60" class="mt-1 w-full border border-white/10 bg-void/90 px-2.5 py-1.5 text-xs text-white focus:border-nexus-blue/60 focus:outline-none" />
+          </div>
+          <div>
+            <label for="studio-desc-input" class="block font-mono text-[10px] text-nexus-muted">Description</label>
+            <textarea id="studio-desc-input" rows="2" maxlength="240" class="mt-1 w-full resize-none border border-white/10 bg-void/90 px-2.5 py-1.5 text-xs text-white focus:border-nexus-blue/60 focus:outline-none"></textarea>
+          </div>
+          <div>
+            <span class="block font-mono text-[10px] text-nexus-muted">Atmosphere Color</span>
+            <div id="studio-color-swatches" class="mt-1.5 flex flex-wrap gap-2"></div>
+          </div>
+          <div class="flex gap-2 pt-1">
+            <button id="btn-studio-apply" type="button" class="flex-1 border border-nexus-blue/50 bg-nexus-blue px-3 py-1.5 font-semibold text-void transition hover:bg-[#6E9CFF]">Save Object</button>
+            <button id="btn-studio-delete" type="button" class="border border-rose-500/40 bg-rose-500/10 px-3 py-1.5 text-rose-300 transition hover:bg-rose-500/20">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add New Planet -->
+      <div class="space-y-2.5 border border-white/[0.08] bg-white/[0.02] p-3">
+        <div class="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-blue">Add New Planet</div>
+        <input id="studio-new-name" type="text" placeholder="Planet topic name..." maxlength="60" class="w-full border border-white/10 bg-void/90 px-2.5 py-1.5 text-xs text-white placeholder:text-nexus-muted/60 focus:border-nexus-blue/60 focus:outline-none" />
+        <input id="studio-new-desc" type="text" placeholder="Short description..." maxlength="180" class="w-full border border-white/10 bg-void/90 px-2.5 py-1.5 text-xs text-white placeholder:text-nexus-muted/60 focus:border-nexus-blue/60 focus:outline-none" />
+        <button id="btn-studio-add-planet" type="button" class="w-full border border-white/15 bg-white/[0.05] px-3 py-1.5 font-medium text-white transition hover:border-nexus-blue/50 hover:bg-nexus-blue/15">
+          + Add Planet to Orbit
+        </button>
+      </div>
+
+      <!-- Connect Planets -->
+      <div class="space-y-2.5 border border-white/[0.08] bg-white/[0.02] p-3">
+        <div class="font-mono text-[10px] uppercase tracking-[0.16em] text-nexus-violet">Relationships</div>
+        <div class="grid grid-cols-2 gap-2">
+          <select id="studio-rel-source" class="border border-white/10 bg-void/90 px-2 py-1.5 text-xs text-white focus:border-nexus-blue/60 focus:outline-none"></select>
+          <select id="studio-rel-target" class="border border-white/10 bg-void/90 px-2 py-1.5 text-xs text-white focus:border-nexus-blue/60 focus:outline-none"></select>
+        </div>
+        <input id="studio-rel-label" type="text" placeholder="Relationship label (e.g., powers, informs)" maxlength="40" class="w-full border border-white/10 bg-void/90 px-2.5 py-1.5 text-xs text-white placeholder:text-nexus-muted/60 focus:border-nexus-blue/60 focus:outline-none" />
+        <button id="btn-studio-connect" type="button" class="w-full border border-nexus-violet/45 bg-nexus-violet/15 px-3 py-1.5 font-medium text-white transition hover:bg-nexus-violet/25">
+          Connect Planets
+        </button>
+        <div id="studio-rel-list" class="max-h-36 space-y-1 overflow-y-auto pt-1 thin-scroll"></div>
+      </div>
+
+      <!-- Reorganize -->
+      <button id="btn-studio-reorganize" type="button" class="w-full border border-white/12 bg-white/[0.03] px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-nexus-muted transition hover:border-nexus-cyan/50 hover:text-white">
+        Reorganize Orbital Harmonics
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===================================================================== -->
+  <!-- MULTIVERSE & VERSION HISTORY MODALS                                   -->
+  <!-- ===================================================================== -->
+  <div id="modal-backdrop" class="fixed inset-0 z-50 hidden items-center justify-center bg-void/80 p-4 backdrop-blur-sm">
+    <!-- Multiverse Modal -->
+    <div id="multiverse-modal" class="glass-panel hidden w-full max-w-2xl overflow-hidden">
+      <div class="flex items-center justify-between border-b border-white/[0.08] p-4">
+        <div>
+          <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-nexus-cyan">Multiverse Directory</div>
+          <h3 class="font-display text-base font-semibold text-white">Saved & Seed Universes</h3>
+        </div>
+        <button id="btn-close-multiverse" type="button" class="p-1.5 text-nexus-muted hover:text-white">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div id="multiverse-grid" class="thin-scroll grid max-h-[65vh] grid-cols-1 gap-3 overflow-y-auto p-4 sm:grid-cols-2"></div>
+    </div>
+
+    <!-- Version History (Time Travel) Modal -->
+    <div id="history-modal" class="glass-panel hidden w-full max-w-lg overflow-hidden">
+      <div class="flex items-center justify-between border-b border-white/[0.08] p-4">
+        <div>
+          <div class="font-mono text-[10px] uppercase tracking-[0.2em] text-nexus-violet">Time Travel</div>
+          <h3 class="font-display text-base font-semibold text-white">Universe Version Snapshots</h3>
+        </div>
+        <button id="btn-close-history" type="button" class="p-1.5 text-nexus-muted hover:text-white">
+          <i data-lucide="x" class="h-4 w-4"></i>
+        </button>
+      </div>
+      <div id="history-list" class="thin-scroll max-h-[60vh] space-y-2 overflow-y-auto p-4 text-xs"></div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="pointer-events-none fixed bottom-20 left-1/2 z-50 hidden -translate-x-1/2 border border-nexus-blue/40 bg-charcoal-950/95 px-4 py-2 font-mono text-xs text-white shadow-lg backdrop-blur-md"></div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // =====================================================================
+      // 1. SEED UNIVERSES & DYNAMIC UNIVERSE SYNTHESIZER
+      // =====================================================================
+      const COSMIC_COLORS = ['#568BFF', '#8B5CF6', '#22D3EE', '#38BDF8', '#A78BFA', '#34D399', '#F472B6', '#FBBF24'];
+
+      const SEED_UNIVERSES = [
+        {
+          id: 'univ-ai',
+          name: 'Artificial Intelligence',
+          tag: 'Computing',
+          prompt: 'Create a universe about Artificial Intelligence',
+          description: 'A spatial map of modern AI systems, from statistical learning foundations to multimodal reasoning and alignment.',
+          favorite: true,
+          planets: [
+            {
+              id: 'machine-learning',
+              name: 'Machine Learning',
+              color: '#568BFF',
+              description: 'Algorithms that discover patterns and generalize from empirical data without explicit rule programming.',
+              concepts: ['Generalization', 'Loss Functions', 'Gradient Descent', 'Feature Representations'],
+              aiExplanation: 'Machine Learning forms the statistical engine of AI. Models optimize objective functions over data distributions to make predictions, classify signals, or generate structured outputs.',
+              children: [
+                { id: 'supervised-learning', name: 'Supervised Learning', description: 'Training predictive models from labeled input-output pairs.' },
+                { id: 'unsupervised-learning', name: 'Unsupervised Learning', description: 'Discovering latent clusters, manifolds, and structure in unlabeled data.' },
+                { id: 'reinforcement-learning', name: 'Reinforcement Learning', description: 'Learning sequential policies by maximizing cumulative environmental rewards.' }
+              ]
+            },
+            {
+              id: 'neural-architectures',
+              name: 'Neural Architectures',
+              color: '#8B5CF6',
+              description: 'Layered computational graphs inspired by biological networks that learn hierarchical representations.',
+              concepts: ['Transformers', 'Self-Attention', 'Diffusion Models', 'Graph Networks'],
+              aiExplanation: 'Modern neural architectures—especially Transformers—use parallel self-attention mechanisms to model long-range dependencies across language, code, vision, and audio.',
+              children: [
+                { id: 'transformers', name: 'Transformers', description: 'Attention-based sequence models powering frontier LLMs.' },
+                { id: 'diffusion', name: 'Diffusion Models', description: 'Iterative denoising networks for high-fidelity media synthesis.' },
+                { id: 'state-space', name: 'State Space Models', description: 'Sub-quadratic sequence architectures for long-context efficiency.' }
+              ]
+            },
+            {
+              id: 'autonomous-agents',
+              name: 'Autonomous Agents',
+              color: '#22D3EE',
+              description: 'Goal-directed AI systems capable of planning, tool invocation, memory management, and iterative verification.',
+              concepts: ['Tool Use', 'Multi-Step Planning', 'Working Memory', 'Self-Critique'],
+              aiExplanation: 'Agents pair reasoning models with executable environments—reading files, calling APIs, observing feedback, and revising plans until objectives are met.',
+              children: [
+                { id: 'tool-orchestration', name: 'Tool Orchestration', description: 'Structured function calling across external APIs and code sandboxes.' },
+                { id: 'agent-memory', name: 'Episodic Memory', description: 'Persisting long-term user preferences and prior execution traces.' }
+              ]
+            },
+            {
+              id: 'multimodal-perception',
+              name: 'Multimodal Perception',
+              color: '#38BDF8',
+              description: 'Unified representations bridging text, images, video, 3D geometry, and real-time audio streams.',
+              concepts: ['Vision-Language', 'Cross-Modal Alignment', 'Spatial Grounding', 'Speech Synthesis'],
+              aiExplanation: 'Multimodal models project heterogeneous sensory tokens into a shared latent space so systems can reason simultaneously over diagrams, scenes, and speech.',
+              children: [
+                { id: 'computer-vision', name: 'Computer Vision', description: 'Visual understanding, segmentation, and 3D scene reconstruction.' },
+                { id: 'audio-intelligence', name: 'Audio Intelligence', description: 'Low-latency speech recognition, prosody, and acoustic reasoning.' }
+              ]
+            },
+            {
+              id: 'alignment-safety',
+              name: 'Alignment & Safety',
+              color: '#A78BFA',
+              description: 'Ensuring capable AI systems behave reliably, transparently, and in accordance with human intent.',
+              concepts: ['RLHF', 'Interpretability', 'Red Teaming', 'Robustness'],
+              aiExplanation: 'Alignment combines post-training preference optimization, mechanistic interpretability, and rigorous adversarial evaluations to bound failure modes.',
+              children: [
+                { id: 'interpretability', name: 'Interpretability', description: 'Reverse-engineering internal circuits and feature directions in neural nets.' },
+                { id: 'evaluations', name: 'Safety Evaluations', description: 'Benchmarking truthfulness, refusal calibration, and misuse resistance.' }
+              ]
+            },
+            {
+              id: 'ai-infrastructure',
+              name: 'Compute & Infrastructure',
+              color: '#34D399',
+              description: 'Distributed hardware clusters, custom accelerators, quantization, and inference serving engines.',
+              concepts: ['GPU Clusters', 'Quantization', 'KV Caching', 'Speculative Decoding'],
+              aiExplanation: 'Scaling laws depend on co-designing model architectures with high-bandwidth interconnects, low-precision arithmetic, and efficient serving runtimes.',
+              children: [
+                { id: 'inference-opt', name: 'Inference Optimization', description: 'Reducing latency and token cost via batching and quantization.' },
+                { id: 'distributed-training', name: 'Distributed Training', description: 'Parallelizing tensor, pipeline, and data shards across thousands of chips.' }
+              ]
+            }
+          ],
+          relationships: [
+            { id: 'rel-1', sourceId: 'machine-learning', targetId: 'neural-architectures', label: 'formalizes' },
+            { id: 'rel-2', sourceId: 'neural-architectures', targetId: 'autonomous-agents', label: 'powers' },
+            { id: 'rel-3', sourceId: 'neural-architectures', targetId: 'multimodal-perception', label: 'unifies' },
+            { id: 'rel-4', sourceId: 'alignment-safety', targetId: 'autonomous-agents', label: 'governs' },
+            { id: 'rel-5', sourceId: 'ai-infrastructure', targetId: 'neural-architectures', label: 'scales' },
+            { id: 'rel-6', sourceId: 'multimodal-perception', targetId: 'autonomous-agents', label: 'grounds' }
+          ]
+        },
+        {
+          id: 'univ-brain',
+          name: 'The Human Brain',
+          tag: 'Neuroscience',
+          prompt: 'Map the architecture of The Human Brain',
+          description: 'An interactive exploration of neural circuits, sensory processing, memory consolidation, and human consciousness.',
+          favorite: false,
+          planets: [
+            {
+              id: 'prefrontal-cortex',
+              name: 'Prefrontal Cortex',
+              color: '#568BFF',
+              description: 'Executive hub governing planning, working memory, impulse control, and abstract decision-making.',
+              concepts: ['Executive Function', 'Working Memory', 'Cognitive Flexibility'],
+              aiExplanation: 'The prefrontal cortex integrates sensory, emotional, and mnemonic signals to maintain goals over time and inhibit short-sighted impulses.',
+              children: [
+                { id: 'dorsolateral-pfc', name: 'Dorsolateral PFC', description: 'Supports working memory and analytical problem solving.' },
+                { id: 'orbitofrontal', name: 'Orbitofrontal Cortex', description: 'Evaluates reward value and adapts choices to changing outcomes.' }
+              ]
+            },
+            {
+              id: 'hippocampus-memory',
+              name: 'Hippocampus & Memory',
+              color: '#22D3EE',
+              description: 'Core structure for encoding episodic memories, spatial navigation, and sleep-dependent consolidation.',
+              concepts: ['Long-Term Potentiation', 'Place Cells', 'Consolidation'],
+              aiExplanation: 'The hippocampus rapidly binds experiences into indexed memory traces before gradually transferring stable knowledge to neocortical networks during sleep.',
+              children: [
+                { id: 'episodic-encoding', name: 'Episodic Encoding', description: 'Binding who, what, where, and when into autobiographical events.' },
+                { id: 'spatial-maps', name: 'Cognitive Maps', description: 'Grid and place cell representations of physical and conceptual space.' }
+              ]
+            },
+            {
+              id: 'synaptic-plasticity',
+              name: 'Synaptic Plasticity',
+              color: '#8B5CF6',
+              description: 'Activity-dependent strengthening and pruning of synaptic connections that underlie all learning.',
+              concepts: ['Hebbian Learning', 'Neurogenesis', 'Myelination'],
+              aiExplanation: 'Neurons continuously recalibrate connection weights based on spike timing and neuromodulators, reshaping circuits across an entire lifespan.',
+              children: [
+                { id: 'ltp-ltd', name: 'LTP & LTD', description: 'Bidirectional molecular mechanisms tuning synaptic efficacy.' },
+                { id: 'neuromodulators', name: 'Neuromodulators', description: 'Dopamine, serotonin, and acetylcholine broadcasting salience signals.' }
+              ]
+            },
+            {
+              id: 'sensory-cortices',
+              name: 'Sensory Cortices',
+              color: '#38BDF8',
+              description: 'Hierarchical visual, auditory, and somatosensory pathways transforming raw signals into perception.',
+              concepts: ['Predictive Processing', 'Visual Streams', 'Multisensory Binding'],
+              aiExplanation: 'Rather than passively recording the world, sensory cortices combine bottom-up inputs with top-down generative predictions.',
+              children: [
+                { id: 'visual-cortex', name: 'Visual Cortex', description: 'Extracts edges, motion, depth, and semantic object identity.' },
+                { id: 'auditory-cortex', name: 'Auditory Cortex', description: 'Decodes pitch, rhythm, spatial sound, and spoken language.' }
+              ]
+            },
+            {
+              id: 'limbic-emotion',
+              name: 'Limbic & Emotion',
+              color: '#F472B6',
+              description: 'Subcortical networks orchestrating threat detection, motivation, attachment, and homeostasis.',
+              concepts: ['Amygdala', 'Reward Circuitry', 'Autonomic Regulation'],
+              aiExplanation: 'Emotional circuits assign urgency and value to perceptions, steering attention and mobilizing physiological responses in milliseconds.',
+              children: [
+                { id: 'amygdala', name: 'Amygdala', description: 'Rapid salience and emotional memory modulation.' },
+                { id: 'basal-ganglia', name: 'Basal Ganglia', description: 'Action selection, habit loops, and reward prediction errors.' }
+              ]
+            }
+          ],
+          relationships: [
+            { id: 'b-rel-1', sourceId: 'prefrontal-cortex', targetId: 'hippocampus-memory', label: 'retrieves from' },
+            { id: 'b-rel-2', sourceId: 'synaptic-plasticity', targetId: 'hippocampus-memory', label: 'encodes' },
+            { id: 'b-rel-3', sourceId: 'sensory-cortices', targetId: 'prefrontal-cortex', label: 'informs' },
+            { id: 'b-rel-4', sourceId: 'limbic-emotion', targetId: 'prefrontal-cortex', label: 'modulates' },
+            { id: 'b-rel-5', sourceId: 'limbic-emotion', targetId: 'hippocampus-memory', label: 'tags salience' }
+          ]
+        },
+        {
+          id: 'univ-entrepreneurship',
+          name: 'Entrepreneurship',
+          tag: 'Strategy',
+          prompt: 'Build a universe of Entrepreneurship',
+          description: 'The interconnected disciplines of building enduring companies from customer insight to global distribution.',
+          favorite: false,
+          planets: [
+            {
+              id: 'problem-discovery',
+              name: 'Problem Discovery',
+              color: '#22D3EE',
+              description: 'Uncovering urgent, underserved customer workflows before writing a line of production code.',
+              concepts: ['Jobs To Be Done', 'User Interviews', 'Market Timing'],
+              aiExplanation: 'Enduring companies start with non-obvious pain points where existing alternatives are slow, fragmented, or prohibitively expensive.',
+              children: [
+                { id: 'customer-interviews', name: 'Customer Discovery', description: 'Observing real behavior rather than hypothetical feature requests.' },
+                { id: 'market-sizing', name: 'Market Dynamics', description: 'Identifying structural tailwinds and expanding value pools.' }
+              ]
+            },
+            {
+              id: 'product-craft',
+              name: 'Product Craft',
+              color: '#568BFF',
+              description: 'Translating insight into an opinionated, fast, and defensible product experience.',
+              concepts: ['MVP Scope', 'Retention Loops', 'Design Velocity'],
+              aiExplanation: 'Great products compress complexity into intuitive workflows that deliver unmistakable value within the first session.',
+              children: [
+                { id: 'iteration-cadence', name: 'Iteration Loops', description: 'Shipping tightly scoped releases guided by telemetry and user feedback.' },
+                { id: 'defensibility', name: 'Product Moats', description: 'Network effects, workflow lock-in, and proprietary data flywheels.' }
+              ]
+            },
+            {
+              id: 'distribution-growth',
+              name: 'Distribution & Growth',
+              color: '#8B5CF6',
+              description: 'Repeatable acquisition channels, positioning, pricing architecture, and enterprise sales motions.',
+              concepts: ['Product-Led Growth', 'Positioning', 'Unit Economics'],
+              aiExplanation: 'Distribution is equally critical to invention: aligning channel mechanics with customer LTV and payback windows compounds momentum.',
+              children: [
+                { id: 'plg', name: 'Product-Led Growth', description: 'Self-serve onboarding and organic team virality.' },
+                { id: 'enterprise-gtm', name: 'Enterprise GTM', description: 'Consultative pilots, security trust, and multi-year expansion.' }
+              ]
+            },
+            {
+              id: 'capital-finance',
+              name: 'Capital & Economics',
+              color: '#34D399',
+              description: 'Runway discipline, gross margins, fundraising strategy, and capital allocation.',
+              concepts: ['Burn Multiple', 'Gross Margin', 'Cap Table Strategy'],
+              aiExplanation: 'Strong unit economics give founders strategic autonomy—turning venture capital into an accelerant rather than life support.',
+              children: [
+                { id: 'unit-economics', name: 'Unit Economics', description: 'Balancing CAC, payback period, and net dollar retention.' },
+                { id: 'fundraising', name: 'Capital Formation', description: 'Aligning milestone narratives with stage-appropriate investors.' }
+              ]
+            },
+            {
+              id: 'team-culture',
+              name: 'Team & Leadership',
+              color: '#FBBF24',
+              description: 'Hiring high-agency builders, setting clear standards, and scaling organizational clarity.',
+              concepts: ['High-Agency Hiring', 'Decision Velocity', 'Operating Cadence'],
+              aiExplanation: 'Early team density sets the ceiling for execution speed and product quality long before formal processes exist.',
+              children: [
+                { id: 'hiring-bar', name: 'Talent Density', description: 'Recruiting missionaries who combine craft with ownership.' },
+                { id: 'operating-rhythm', name: 'Operating Rhythm', description: 'Crisp goals, fast feedback, and ruthless prioritization.' }
+              ]
+            }
+          ],
+          relationships: [
+            { id: 'e-rel-1', sourceId: 'problem-discovery', targetId: 'product-craft', label: 'shapes' },
+            { id: 'e-rel-2', sourceId: 'product-craft', targetId: 'distribution-growth', label: 'accelerates' },
+            { id: 'e-rel-3', sourceId: 'distribution-growth', targetId: 'capital-finance', label: 'compounds' },
+            { id: 'e-rel-4', sourceId: 'team-culture', targetId: 'product-craft', label: 'executes' },
+            { id: 'e-rel-5', sourceId: 'capital-finance', targetId: 'team-culture', label: 'funds' }
+          ]
+        },
+        {
+          id: 'univ-solar',
+          name: 'The Solar System',
+          tag: 'Astronomy',
+          prompt: 'Construct an interactive Solar System',
+          description: 'Planetary worlds, orbital mechanics, icy outer belts, and robotic exploration across our stellar neighborhood.',
+          favorite: false,
+          planets: [
+            {
+              id: 'inner-rocky',
+              name: 'Terrestrial Worlds',
+              color: '#FBBF24',
+              description: 'Dense silicate planets—Mercury, Venus, Earth, and Mars—forged inside the solar frost line.',
+              concepts: ['Differentiated Cores', 'Magnetospheres', 'Habitable Zone'],
+              aiExplanation: 'Close to the Sun, high temperatures left refractory metals and silicates to coalesce into compact rocky worlds with wildly diverging atmospheres.',
+              children: [
+                { id: 'earth-biosphere', name: 'Earth & Biosphere', description: 'Plate tectonics, liquid oceans, and life-sustaining atmosphere.' },
+                { id: 'mars-geology', name: 'Mars Exploration', description: 'Ancient river deltas, polar ice caps, and rover astrobiology.' }
+              ]
+            },
+            {
+              id: 'gas-giants',
+              name: 'Gas Giants',
+              color: '#568BFF',
+              description: 'Jupiter and Saturn—massive hydrogen-helium worlds sculpting the dynamics of the entire system.',
+              concepts: ['Metallic Hydrogen', 'Ring Dynamics', 'Galilean Moons'],
+              aiExplanation: 'Jupiter’s immense gravity stabilizes inner-system orbits while its tidal flexing heats subsurface oceans inside Europa and Ganymede.',
+              children: [
+                { id: 'europa-ocean', name: 'Europa & Enceladus', description: 'Icy moons harboring global salty oceans beneath frozen crusts.' },
+                { id: 'saturn-rings', name: 'Saturnian Rings', description: 'Billions of icy particles shepherded by orbital resonances.' }
+              ]
+            },
+            {
+              id: 'ice-giants',
+              name: 'Ice Giants',
+              color: '#22D3EE',
+              description: 'Uranus and Neptune—volatile-rich outer planets with extreme winds and tilted magnetic fields.',
+              concepts: ['Superionic Water', 'Supersonic Winds', 'Triton'],
+              aiExplanation: 'Beyond Saturn, water, ammonia, and methane ices dominate planetary mantles under crushing interior pressures.',
+              children: [
+                { id: 'neptune-dynamics', name: 'Neptune & Triton', description: 'Captured Kuiper Belt moon orbiting retrograde around Neptune.' },
+                { id: 'uranus-tilt', name: 'Uranian Axial Tilt', description: '98-degree sideways rotation creating 42-year polar seasons.' }
+              ]
+            },
+            {
+              id: 'outer-belts',
+              name: 'Kuiper Belt & Oort Cloud',
+              color: '#8B5CF6',
+              description: 'Primordial reservoirs of dwarf planets, icy planetesimals, and long-period comets.',
+              concepts: ['Pluto-Charon', 'Cometary Nuclei', 'Heliopause'],
+              aiExplanation: 'These distant icy populations preserve pristine chemical records from the birth of the Solar System 4.6 billion years ago.',
+              children: [
+                { id: 'pluto-system', name: 'Pluto & Dwarf Planets', description: 'Nitrogen glaciers and complex geology in deep cryogenic space.' },
+                { id: 'voyager-heliosphere', name: 'Interstellar Boundary', description: 'Where the solar wind meets the local interstellar medium.' }
+              ]
+            },
+            {
+              id: 'deep-space-missions',
+              name: 'Robotic Exploration',
+              color: '#34D399',
+              description: 'Gravity-assist trajectories, autonomous probes, and space telescopes extending human perception.',
+              concepts: ['Gravity Assists', 'Deep Space Network', 'Sample Return'],
+              aiExplanation: 'Orbital mechanics allow spacecraft to slingshot across billions of kilometers using minimal propellant.',
+              children: [
+                { id: 'jwst', name: 'Space Observatories', description: 'Infrared spectroscopy probing exoplanet atmospheres and early galaxies.' },
+                { id: 'sample-return', name: 'Asteroid Sample Return', description: 'Returning pristine carbonaceous regolith directly to Earth laboratories.' }
+              ]
+            }
+          ],
+          relationships: [
+            { id: 's-rel-1', sourceId: 'gas-giants', targetId: 'inner-rocky', label: 'shepherds orbits' },
+            { id: 's-rel-2', sourceId: 'gas-giants', targetId: 'ice-giants', label: 'resonates with' },
+            { id: 's-rel-3', sourceId: 'ice-giants', targetId: 'outer-belts', label: 'scatters' },
+            { id: 's-rel-4', sourceId: 'deep-space-missions', targetId: 'inner-rocky', label: 'surveys' },
+            { id: 's-rel-5', sourceId: 'deep-space-missions', targetId: 'outer-belts', label: 'traverses' }
+          ]
+        },
+        {
+          id: 'univ-history',
+          name: 'World History',
+          tag: 'History',
+          prompt: 'Chart World History across civilizations and revolutions',
+          description: 'The arc of human civilization across agricultural origins, trade corridors, scientific revolutions, and modern global systems.',
+          favorite: false,
+          planets: [
+            {
+              id: 'ancient-civilizations',
+              name: 'Ancient Civilizations',
+              color: '#FBBF24',
+              description: 'River-valley societies in Mesopotamia, Egypt, the Indus Valley, and China pioneering writing and law.',
+              concepts: ['Urbanization', 'Writing Systems', 'Bronze Metallurgy'],
+              aiExplanation: 'Agricultural surplus enabled specialized crafts, codified legal systems, and monumental civic architecture.',
+              children: [
+                { id: 'writing-origins', name: 'Birth of Writing', description: 'Cuneiform, hieroglyphs, and oracle bones preserving human record.' },
+                { id: 'classical-empires', name: 'Classical Empires', description: 'Maurya, Han, Roman, and Persian administrative networks.' }
+              ]
+            },
+            {
+              id: 'trade-networks',
+              name: 'Global Trade Networks',
+              color: '#22D3EE',
+              description: 'Overland Silk Roads and Indian Ocean maritime routes exchanging goods, ideas, and technologies.',
+              concepts: ['Silk Road', 'Monsoon Navigation', 'Cultural Syncretism'],
+              aiExplanation: 'Trade corridors transmitted papermaking, mathematics, spices, and philosophies across continents centuries before modern transport.',
+              children: [
+                { id: 'silk-road', name: 'The Silk Roads', description: 'Eurasian caravan cities linking Chang’an to the Mediterranean.' },
+                { id: 'indian-ocean', name: 'Indian Ocean World', description: 'Maritime commerce connecting East Africa, Arabia, India, and Southeast Asia.' }
+              ]
+            },
+            {
+              id: 'scientific-revolution',
+              name: 'Scientific Revolution',
+              color: '#568BFF',
+              description: 'Empiricism, mathematical physics, and printing accelerating systematic discovery.',
+              concepts: ['Empirical Method', 'Printing Press', 'Heliocentrism'],
+              aiExplanation: 'Reproducible experimentation and open publication transformed natural philosophy into cumulative modern science.',
+              children: [
+                { id: 'printing-knowledge', name: 'Print & Knowledge', description: 'Rapid dissemination of treatises, maps, and mathematical tables.' },
+                { id: 'physics-astronomy', name: 'Laws of Nature', description: 'Unifying terrestrial mechanics with celestial motion.' }
+              ]
+            },
+            {
+              id: 'industrial-age',
+              name: 'Industrial Transformation',
+              color: '#8B5CF6',
+              description: 'Steam power, railways, electrification, and mass manufacturing reshaping global economies.',
+              concepts: ['Energy Transitions', 'Urban Mobility', 'Global Supply Chains'],
+              aiExplanation: 'Harnessing fossil and electrical energy multiplied human productivity while triggering sweeping social and political shifts.',
+              children: [
+                { id: 'electrification', name: 'Electrification', description: 'Power grids, telegraphs, and instantaneous long-distance communication.' },
+                { id: 'modern-medicine', name: 'Public Health', description: 'Germ theory, sanitation, and antibiotics doubling life expectancy.' }
+              ]
+            },
+            {
+              id: 'information-era',
+              name: 'The Information Era',
+              color: '#34D399',
+              description: 'Transistors, global networks, spaceflight, and artificial intelligence redefining human capability.',
+              concepts: ['Semiconductors', 'The Internet', 'Global Institutions'],
+              aiExplanation: 'Digital computation compressed the cost of storing, transmitting, and processing information toward zero.',
+              children: [
+                { id: 'computing-revolution', name: 'Digital Computing', description: 'From vacuum tubes and integrated circuits to planetary cloud networks.' },
+                { id: 'global-interdependence', name: 'Planetary Systems', description: 'Climate coordination, open science, and cross-border collaboration.' }
+              ]
+            }
+          ],
+          relationships: [
+            { id: 'h-rel-1', sourceId: 'ancient-civilizations', targetId: 'trade-networks', label: 'connected via' },
+            { id: 'h-rel-2', sourceId: 'trade-networks', targetId: 'scientific-revolution', label: 'cross-pollinated' },
+            { id: 'h-rel-3', sourceId: 'scientific-revolution', targetId: 'industrial-age', label: 'catalyzed' },
+            { id: 'h-rel-4', sourceId: 'industrial-age', targetId: 'information-era', label: 'evolved into' }
+          ]
+        },
+        {
+          id: 'univ-cs',
+          name: 'Computer Science',
+          tag: 'Engineering',
+          prompt: 'Visualize Computer Science from algorithms to distributed systems',
+          description: 'Foundational computation, systems architecture, distributed consensus, security, and programming languages.',
+          favorite: false,
+          planets: [
+            {
+              id: 'algorithms-theory',
+              name: 'Algorithms & Theory',
+              color: '#568BFF',
+              description: 'Formal analysis of computability, complexity classes, graph traversal, and optimal data structures.',
+              concepts: ['Big-O Complexity', 'Dynamic Programming', 'Graph Algorithms'],
+              aiExplanation: 'Algorithmic design determines whether a problem scales effortlessly to billions of records or stalls exponentially.',
+              children: [
+                { id: 'graph-theory', name: 'Graph Algorithms', description: 'Shortest paths, network flows, and spectral clustering.' },
+                { id: 'complexity-classes', name: 'Complexity Theory', description: 'P, NP-completeness, approximation bounds, and randomized proofs.' }
+              ]
+            },
+            {
+              id: 'systems-os',
+              name: 'Operating Systems',
+              color: '#22D3EE',
+              description: 'Virtual memory, schedulers, file systems, and concurrency primitives managing bare-metal hardware.',
+              concepts: ['Virtual Memory', 'Process Isolation', 'Lock-Free Concurrency'],
+              aiExplanation: 'Operating systems virtualize CPUs, memory, and I/O so thousands of tasks run safely and deterministically.',
+              children: [
+                { id: 'memory-hierarchy', name: 'Memory & Caching', description: 'L1/L2/L3 cache locality, paging, and zero-copy I/O.' },
+                { id: 'kernels-containers', name: 'Kernels & Sandboxes', description: 'Namespaces, cgroups, and hardware-assisted isolation.' }
+              ]
+            },
+            {
+              id: 'distributed-systems',
+              name: 'Distributed Systems',
+              color: '#8B5CF6',
+              description: 'Fault-tolerant coordination, replication, and consensus across unreliable networks.',
+              concepts: ['Raft / Paxos', 'Eventual Consistency', 'Sharding'],
+              aiExplanation: 'Distributed architectures trade latency, consistency, and partition tolerance to keep planetary-scale services online.',
+              children: [
+                { id: 'consensus', name: 'Consensus Protocols', description: 'Agreeing on replicated state logs despite node failures.' },
+                { id: 'storage-engines', name: 'Storage Engines', description: 'B-Trees, LSM-Trees, write-ahead logs, and MVCC transactions.' }
+              ]
+            },
+            {
+              id: 'compilers-pl',
+              name: 'Compilers & Languages',
+              color: '#34D399',
+              description: 'Type systems, intermediate representations, static analysis, and machine-code optimization.',
+              concepts: ['Type Inference', 'LLVM IR', 'Garbage Collection'],
+              aiExplanation: 'Modern languages combine ergonomic abstractions with zero-cost compilation and compile-time safety guarantees.',
+              children: [
+                { id: 'type-systems', name: 'Type Systems', description: 'Preventing entire classes of runtime bugs before execution.' },
+                { id: 'jit-opt', name: 'JIT & Optimization', description: 'Profile-guided inlining, vectorization, and register allocation.' }
+              ]
+            },
+            {
+              id: 'cryptography-sec',
+              name: 'Security & Cryptography',
+              color: '#F472B6',
+              description: 'Public-key primitives, zero-knowledge proofs, secure enclaves, and defense-in-depth engineering.',
+              concepts: ['Elliptic Curves', 'Zero-Knowledge Proofs', 'Threat Modeling'],
+              aiExplanation: 'Cryptography turns mathematical hardness assumptions into verifiable identity, confidentiality, and tamper-evident integrity.',
+              children: [
+                { id: 'zk-proofs', name: 'Zero-Knowledge Proofs', description: 'Proving statement validity without revealing underlying secrets.' },
+                { id: 'web-security', name: 'Application Security', description: 'Authentication boundaries, least privilege, and input validation.' }
+              ]
+            }
+          ],
+          relationships: [
+            { id: 'c-rel-1', sourceId: 'algorithms-theory', targetId: 'distributed-systems', label: 'optimizes' },
+            { id: 'c-rel-2', sourceId: 'systems-os', targetId: 'distributed-systems', label: 'underpins' },
+            { id: 'c-rel-3', sourceId: 'compilers-pl', targetId: 'systems-os', label: 'targets' },
+            { id: 'c-rel-4', sourceId: 'cryptography-sec', targetId: 'distributed-systems', label: 'secures' },
+            { id: 'c-rel-5', sourceId: 'algorithms-theory', targetId: 'compilers-pl', label: 'guides' }
+          ]
+        }
+      ];
+
+      function slugify(text) {
+        return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'node-' + Date.now();
+      }
+
+      function synthesizeCustomUniverse(promptText) {
+        const cleanTitle = promptText
+          .replace(/^(create|build|generate|make|map|visualize|explore)\s+(a\s+)?(digital\s+)?(universe\s+)?(about|of|on|for)?\s*/i, '')
+          .replace(/[.?!]+$/, '')
+          .trim();
+        const title = cleanTitle
+          ? cleanTitle.split(/\s+/).slice(0, 5).map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+          : 'Custom Universe';
+
+        const domains = [
+          {
+            suffix: 'Foundations',
+            color: '#568BFF',
+            desc: `Core principles, definitions, and first-principles structure underlying ${title}.`,
+            concepts: ['First Principles', 'Core Taxonomy', 'Mental Models'],
+            subs: ['Key Terminology', 'Historical Origins', 'Core Frameworks']
+          },
+          {
+            suffix: 'Architecture & Systems',
+            color: '#22D3EE',
+            desc: `How components, mechanisms, and interacting layers operate within ${title}.`,
+            concepts: ['System Dynamics', 'Feedback Loops', 'Structure'],
+            subs: ['Primary Components', 'Interface Patterns', 'Scaling Behavior']
+          },
+          {
+            suffix: 'Methods & Practice',
+            color: '#8B5CF6',
+            desc: `Applied workflows, tools, and methodologies used by practitioners in ${title}.`,
+            concepts: ['Applied Craft', 'Tooling', 'Evaluation'],
+            subs: ['Core Workflows', 'Instrumentation', 'Best Practices']
+          },
+          {
+            suffix: 'Breakthroughs & Case Studies',
+            color: '#34D399',
+            desc: `Landmark milestones, real-world exemplars, and inflection points in ${title}.`,
+            concepts: ['Inflection Points', 'Exemplars', 'Comparative Analysis'],
+            subs: ['Pioneering Milestones', 'Modern Exemplars']
+          },
+          {
+            suffix: 'Frontiers & Future',
+            color: '#F472B6',
+            desc: `Open questions, emerging research directions, and long-term implications of ${title}.`,
+            concepts: ['Open Problems', 'Emerging Trends', 'Ethics & Impact'],
+            subs: ['Next-Generation Ideas', 'Unresolved Challenges']
+          }
+        ];
+
+        const planets = domains.map((d, idx) => {
+          const pSlug = `${slugify(title)}-${slugify(d.suffix)}-${idx}`;
+          return {
+            id: pSlug,
+            name: d.suffix,
+            color: d.color,
+            description: d.desc,
+            concepts: d.concepts,
+            aiExplanation: `${d.suffix} serves as a structural pillar of ${title}, linking foundational theory to real-world execution and adjacent domains in this universe.`,
+            children: d.subs.map((s, sIdx) => ({
+              id: `${pSlug}-sub-${sIdx}`,
+              name: s,
+              description: `Focused exploration of ${s.toLowerCase()} within the ${d.suffix.toLowerCase()} of ${title}.`
+            }))
+          };
+        });
+
+        const relationships = [
+          { id: 'c-r1', sourceId: planets[0].id, targetId: planets[1].id, label: 'defines' },
+          { id: 'c-r2', sourceId: planets[1].id, targetId: planets[2].id, label: 'enables' },
+          { id: 'c-r3', sourceId: planets[2].id, targetId: planets[3].id, label: 'produces' },
+          { id: 'c-r4', sourceId: planets[3].id, targetId: planets[4].id, label: 'inspires' },
+          { id: 'c-r5', sourceId: planets[0].id, targetId: planets[4].id, label: 'anchors' }
+        ];
+
+        return {
+          id: 'univ-' + Date.now(),
+          name: title,
+          tag: 'Generated',
+          prompt: promptText,
+          description: `Interactive 3D knowledge universe synthesized from: "${promptText}"`,
+          favorite: false,
+          planets,
+          relationships
+        };
+      }
+
+      // =====================================================================
+      // 2. APPLICATION STATE & STORAGE (Sandbox-Safe)
+      // =====================================================================
+      const STORAGE_KEY = 'nexus_universes_v1';
+
+      function loadSavedUniverses() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          }
+        } catch (_) {}
+        return JSON.parse(JSON.stringify(SEED_UNIVERSES));
+      }
+
+      function persistUniverses() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state.universes));
+        } catch (_) {}
+      }
+
+      const state = {
+        mode: 'landing', // 'landing' | 'explorer'
+        universes: loadSavedUniverses(),
+        activeUniverseId: null,
+        selectedObjectId: null,
+        orbitEnabled: true,
+        linksVisible: true,
+        studioOpen: false,
+        aiOpen: false,
+        voiceSpeak: false,
+        undoStack: [],
+        redoStack: [],
+        versions: {}, // universeId -> [{ version, label, timestamp, snapshot }]
+        conversations: {} // universeId -> [{ role, content }]
+      };
+
+      state.activeUniverseId = state.universes[0].id;
+
+      function getActiveUniverse() {
+        return state.universes.find(u => u.id === state.activeUniverseId) || state.universes[0];
+      }
+
+      function cloneUniverse(u) {
+        return JSON.parse(JSON.stringify(u));
+      }
+
+      function recordVersion(universe, label) {
+        if (!state.versions[universe.id]) state.versions[universe.id] = [];
+        const list = state.versions[universe.id];
+        list.unshift({
+          version: list.length + 1,
+          label,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+          snapshot: cloneUniverse(universe)
+        });
+        if (list.length > 20) list.pop();
+      }
+
+      function pushUndoSnapshot(label) {
+        const u = getActiveUniverse();
+        state.undoStack.push(cloneUniverse(u));
+        if (state.undoStack.length > 25) state.undoStack.shift();
+        state.redoStack = [];
+        recordVersion(u, label);
+        updateUndoRedoButtons();
+      }
+
+      // Seed initial version for default universe
+      recordVersion(getActiveUniverse(), 'Initial Universe Synthesis');
+
+      // =====================================================================
+      // 3. THREE.JS 3D UNIVERSE ENGINE
+      // =====================================================================
+      const container = document.getElementById('canvas-container');
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050505);
+      scene.fog = new THREE.FogExp2(0x050505, 0.0055);
+
+      const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 450);
+      const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      container.appendChild(renderer.domElement);
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0x8aa4d6, 0.55));
+      const coreLight = new THREE.PointLight(0x7ca7ff, 2.6, 130, 1.4);
+      coreLight.position.set(0, 0, 0);
+      scene.add(coreLight);
+      const rimLight = new THREE.DirectionalLight(0x8b5cf6, 0.65);
+      rimLight.position.set(30, 45, -25);
+      scene.add(rimLight);
+
+      // Camera Spherical Orbit Controller (Smooth Damped)
+      const camCtrl = {
+        theta: 0.45,
+        phi: 1.08,
+        radius: 44,
+        targetTheta: 0.45,
+        targetPhi: 1.08,
+        targetRadius: 44,
+        lookAt: new THREE.Vector3(0, 0, 0),
+        targetLookAt: new THREE.Vector3(0, 0, 0),
+        isDragging: false,
+        dragMoved: false,
+        lastX: 0,
+        lastY: 0,
+        focusObjectId: null
+      };
+
+      // Procedural Textures (Glow Sprite + Planet Surface)
+      function createGlowTexture(hexColor) {
+        const c = document.createElement('canvas');
+        c.width = 128;
+        c.height = 128;
+        const ctx = c.getContext('2d');
+        const col = new THREE.Color(hexColor);
+        const r = Math.round(col.r * 255);
+        const g = Math.round(col.g * 255);
+        const b = Math.round(col.b * 255);
+        const grad = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+        grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.95)`);
+        grad.addColorStop(0.32, `rgba(${r}, ${g}, ${b}, 0.35)`);
+        grad.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, 0.06)`);
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 128, 128);
+        return new THREE.CanvasTexture(c);
+      }
+
+      function createPlanetTexture(hexColor, seedIdx) {
+        const c = document.createElement('canvas');
+        c.width = 256;
+        c.height = 128;
+        const ctx = c.getContext('2d');
+        const base = new THREE.Color(hexColor);
+        const dark = base.clone().multiplyScalar(0.32);
+        const light = base.clone().lerp(new THREE.Color(0xffffff), 0.35);
+
+        const grad = ctx.createLinearGradient(0, 0, 0, 128);
+        grad.addColorStop(0, '#' + dark.getHexString());
+        grad.addColorStop(0.35, '#' + base.getHexString());
+        grad.addColorStop(0.55, '#' + light.getHexString());
+        grad.addColorStop(0.85, '#' + base.getHexString());
+        grad.addColorStop(1, '#' + dark.getHexString());
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, 256, 128);
+
+        // Subtle atmospheric bands
+        for (let i = 0; i < 14; i++) {
+          const y = ((i * 19 + seedIdx * 23) % 120) + 4;
+          ctx.fillStyle = i % 2 === 0 ? 'rgba(255,255,255,0.08)' : 'rgba(5,5,15,0.16)';
+          ctx.fillRect(0, y, 256, 3 + (i % 4));
+        }
+        return new THREE.CanvasTexture(c);
+      }
+
+      // Deep-Space Starfield (BufferGeometry)
+      const isMobile = window.innerWidth < 768;
+      const starCount = isMobile ? 1400 : 3200;
+      const starGeo = new THREE.BufferGeometry();
+      const starPos = new Float32Array(starCount * 3);
+      const starCols = new Float32Array(starCount * 3);
+      const starPalette = [
+        new THREE.Color('#FFFFFF'),
+        new THREE.Color('#DCE8FF'),
+        new THREE.Color('#93C5FD'),
+        new THREE.Color('#C4B5FD'),
+        new THREE.Color('#67E8F9')
+      ];
+      for (let i = 0; i < starCount; i++) {
+        const r = 70 + Math.random() * 190;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+        starPos[i * 3 + 1] = r * Math.cos(phi);
+        starPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+        const col = starPalette[i % starPalette.length];
+        const intensity = 0.55 + Math.random() * 0.45;
+        starCols[i * 3] = col.r * intensity;
+        starCols[i * 3 + 1] = col.g * intensity;
+        starCols[i * 3 + 2] = col.b * intensity;
+      }
+      starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+      starGeo.setAttribute('color', new THREE.BufferAttribute(starCols, 3));
+      const starField = new THREE.Points(
+        starGeo,
+        new THREE.PointsMaterial({ size: 0.58, vertexColors: true, transparent: true, opacity: 0.85 })
+      );
+      scene.add(starField);
+
+      // Subtle Nebula Sprites
+      const nebulaGroup = new THREE.Group();
+      const nebulaConfigs = [
+        { pos: [-45, 18, -60], scale: 95, color: '#3b66d4', opacity: 0.14 },
+        { pos: [52, -16, -55], scale: 90, color: '#7c3aed', opacity: 0.12 },
+        { pos: [0, 32, -80], scale: 110, color: '#0891b2', opacity: 0.09 }
+      ];
+      nebulaConfigs.forEach(cfg => {
+        const mat = new THREE.SpriteMaterial({
+          map: createGlowTexture(cfg.color),
+          transparent: true,
+          opacity: cfg.opacity,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        });
+        const sprite = new THREE.Sprite(mat);
+        sprite.position.set(cfg.pos[0], cfg.pos[1], cfg.pos[2]);
+        sprite.scale.set(cfg.scale, cfg.scale, 1);
+        nebulaGroup.add(sprite);
+      });
+      scene.add(nebulaGroup);
+
+      // Dynamic Universe Scene Group
+      const universeGroup = new THREE.Group();
+      scene.add(universeGroup);
+
+      // Shared Geometries
+      const sharedPlanetGeo = new THREE.SphereGeometry(1, 36, 36);
+      const sharedMoonGeo = new THREE.SphereGeometry(0.42, 20, 20);
+      const sharedRingGeo = new THREE.RingGeometry(1.42, 1.56, 48);
+
+      let interactiveMeshes = [];
+      let planetEntries = []; // { id, data, mesh, group, orbitRadius, angle, speed, yOffset, moons: [] }
+      let relationshipLines = []; // { sourceId, targetId, line }
+      let selectionHalo = null;
+
+      function clearUniverseGroup() {
+        while (universeGroup.children.length > 0) {
+          const child = universeGroup.children[0];
+          universeGroup.remove(child);
+        }
+        interactiveMeshes = [];
+        planetEntries = [];
+        relationshipLines = [];
+        selectionHalo = null;
+      }
+
+      function buildUniverseScene(universe) {
+        clearUniverseGroup();
+
+        // Central Luminous Core Star
+        const coreMat = new THREE.MeshBasicMaterial({ color: 0xe6f0ff });
+        const coreMesh = new THREE.Mesh(new THREE.SphereGeometry(2.1, 32, 32), coreMat);
+        universeGroup.add(coreMesh);
+
+        const coreGlow = new THREE.Sprite(
+          new THREE.SpriteMaterial({
+            map: createGlowTexture('#568BFF'),
+            transparent: true,
+            opacity: 0.78,
+            blending: THREE.AdditiveBlending,
+            depthWrite: false
+          })
+        );
+        coreGlow.scale.set(13, 13, 1);
+        universeGroup.add(coreGlow);
+
+        const count = universe.planets.length;
+
+        universe.planets.forEach((planet, idx) => {
+          const orbitRadius = 10 + idx * 5.2;
+          const baseAngle = (idx / Math.max(count, 1)) * Math.PI * 2 + 0.35;
+          const yOffset = Math.sin(idx * 1.7) * 2.1;
+
+          // Subtle Orbital Path Ring
+          const orbitCurve = new THREE.EllipseCurve(0, 0, orbitRadius, orbitRadius, 0, Math.PI * 2, false, 0);
+          const orbitPts = orbitCurve.getPoints(96).map(p => new THREE.Vector3(p.x, yOffset, p.y));
+          const orbitLine = new THREE.LineLoop(
+            new THREE.BufferGeometry().setFromPoints(orbitPts),
+            new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08 })
+          );
+          universeGroup.add(orbitLine);
+
+          // Planet Group
+          const pGroup = new THREE.Group();
+          const radius = 1.45 + Math.min((planet.children || []).length * 0.14, 0.65);
+
+          const pMat = new THREE.MeshStandardMaterial({
+            map: createPlanetTexture(planet.color, idx),
+            roughness: 0.52,
+            metalness: 0.18,
+            emissive: new THREE.Color(planet.color),
+            emissiveIntensity: 0.22
+          });
+          const pMesh = new THREE.Mesh(sharedPlanetGeo, pMat);
+          pMesh.scale.setScalar(radius);
+          pMesh.userData = { id: planet.id, kind: 'planet', name: planet.name, parentId: null };
+          pGroup.add(pMesh);
+          interactiveMeshes.push(pMesh);
+
+          // Atmospheric Glow Halo
+          const halo = new THREE.Sprite(
+            new THREE.SpriteMaterial({
+              map: createGlowTexture(planet.color),
+              transparent: true,
+              opacity: 0.52,
+              blending: THREE.AdditiveBlending,
+              depthWrite: false
+            })
+          );
+          halo.scale.setScalar(radius * 4.4);
+          pGroup.add(halo);
+
+          // Subtle Planetary Ring on every 2nd planet for visual hierarchy
+          if (idx % 2 === 0) {
+            const pRing = new THREE.Mesh(
+              sharedRingGeo,
+              new THREE.MeshBasicMaterial({
+                color: planet.color,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.26
+              })
+            );
+            pRing.scale.setScalar(radius);
+            pRing.rotation.x = Math.PI * 0.44;
+            pRing.rotation.y = 0.2;
+            pGroup.add(pRing);
+          }
+
+          // Orbiting Subtopic Moons
+          const moons = [];
+          const children = planet.children || [];
+          children.forEach((child, cIdx) => {
+            const mOrbit = radius + 1.55 + (cIdx % 2) * 0.65;
+            const mAngle = (cIdx / Math.max(children.length, 1)) * Math.PI * 2;
+            const mMesh = new THREE.Mesh(
+              sharedMoonGeo,
+              new THREE.MeshStandardMaterial({
+                color: new THREE.Color(planet.color).lerp(new THREE.Color('#ffffff'), 0.4),
+                emissive: new THREE.Color(planet.color),
+                emissiveIntensity: 0.35,
+                roughness: 0.4
+              })
+            );
+            mMesh.position.set(Math.cos(mAngle) * mOrbit, Math.sin(cIdx * 1.4) * 0.55, Math.sin(mAngle) * mOrbit);
+            mMesh.userData = { id: child.id, kind: 'subtopic', name: child.name, parentId: planet.id };
+            pGroup.add(mMesh);
+            interactiveMeshes.push(mMesh);
+
+            // Connector from Planet to Subtopic
+            const tetherGeo = new THREE.BufferGeometry().setFromPoints([
+              new THREE.Vector3(0, 0, 0),
+              mMesh.position.clone()
+            ]);
+            const tetherLine = new THREE.Line(
+              tetherGeo,
+              new THREE.LineBasicMaterial({ color: planet.color, transparent: true, opacity: 0.28 })
+            );
+            pGroup.add(tetherLine);
+
+            moons.push({
+              id: child.id,
+              data: child,
+              mesh: mMesh,
+              tether: tetherLine,
+              orbitRadius: mOrbit,
+              angle: mAngle,
+              speed: 0.32 + cIdx * 0.07,
+              yOffset: Math.sin(cIdx * 1.4) * 0.55
+            });
+          });
+
+          pGroup.position.set(Math.cos(baseAngle) * orbitRadius, yOffset, Math.sin(baseAngle) * orbitRadius);
+          universeGroup.add(pGroup);
+
+          planetEntries.push({
+            id: planet.id,
+            data: planet,
+            group: pGroup,
+            mesh: pMesh,
+            radius,
+            orbitRadius,
+            angle: baseAngle,
+            speed: 0.045 / (1 + idx * 0.22),
+            yOffset,
+            moons
+          });
+        });
+
+        // Inter-planet glowing relationship lines
+        (universe.relationships || []).forEach(rel => {
+          const sEntry = planetEntries.find(p => p.id === rel.sourceId);
+          const tEntry = planetEntries.find(p => p.id === rel.targetId);
+          if (!sEntry || !tEntry) return;
+          const lineGeo = new THREE.BufferGeometry().setFromPoints([
+            sEntry.group.position.clone(),
+            tEntry.group.position.clone()
+          ]);
+          const lineMat = new THREE.LineBasicMaterial({
+            color: 0x568bff,
+            transparent: true,
+            opacity: 0.34
+          });
+          const line = new THREE.Line(lineGeo, lineMat);
+          line.visible = state.linksVisible;
+          universeGroup.add(line);
+          relationshipLines.push({ sourceId: rel.sourceId, targetId: rel.targetId, line });
+        });
+
+        // Selection Reticle Ring
+        selectionHalo = new THREE.Mesh(
+          new THREE.RingGeometry(1.75, 1.9, 48),
+          new THREE.MeshBasicMaterial({ color: 0x22d3ee, side: THREE.DoubleSide, transparent: true, opacity: 0.9 })
+        );
+        selectionHalo.visible = false;
+        universeGroup.add(selectionHalo);
+
+        updateHudStats();
+      }
+
+      // Find world position of any planet or subtopic ID
+      function getObjectWorldPosition(objectId) {
+        for (const p of planetEntries) {
+          if (p.id === objectId) {
+            return { pos: p.group.position.clone(), radius: p.radius };
+          }
+          for (const m of p.moons) {
+            if (m.id === objectId) {
+              const worldPos = new THREE.Vector3();
+              m.mesh.getWorldPosition(worldPos);
+              return { pos: worldPos, radius: 0.65 };
+            }
+          }
+        }
+        return null;
+      }
+
+      function focusCameraOnObject(objectId) {
+        const info = getObjectWorldPosition(objectId);
+        if (!info) return;
+        camCtrl.focusObjectId = objectId;
+        camCtrl.targetLookAt.copy(info.pos);
+        camCtrl.targetRadius = Math.max(info.radius * 4.5, 8.5);
+      }
+
+      function resetCameraToFullUniverse() {
+        camCtrl.focusObjectId = null;
+        camCtrl.targetLookAt.set(0, 0, 0);
+        camCtrl.targetRadius = 46;
+        camCtrl.targetPhi = 1.08;
+      }
+
+      // Raycasting for Hover, Click & Double-Click
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+      const tooltipEl = document.getElementById('hover-tooltip');
+      const tooltipName = document.getElementById('tooltip-name');
+      const tooltipKind = document.getElementById('tooltip-kind');
+      let hoveredObjectId = null;
+
+      function updateRaycaster(clientX, clientY) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(interactiveMeshes, false);
+        return hits.length > 0 ? hits[0].object : null;
+      }
+
+      renderer.domElement.addEventListener('pointerdown', (e) => {
+        if (state.mode !== 'explorer') return;
+        camCtrl.isDragging = true;
+        camCtrl.dragMoved = false;
+        camCtrl.lastX = e.clientX;
+        camCtrl.lastY = e.clientY;
+      });
+
+      window.addEventListener('pointermove', (e) => {
+        if (camCtrl.isDragging) {
+          const dx = e.clientX - camCtrl.lastX;
+          const dy = e.clientY - camCtrl.lastY;
+          if (Math.abs(dx) > 2 || Math.abs(dy) > 2) camCtrl.dragMoved = true;
+          camCtrl.targetTheta -= dx * 0.0065;
+          camCtrl.targetPhi = Math.max(0.22, Math.min(Math.PI - 0.22, camCtrl.targetPhi - dy * 0.0065));
+          camCtrl.lastX = e.clientX;
+          camCtrl.lastY = e.clientY;
+          tooltipEl.classList.add('hidden');
+          return;
+        }
+
+        if (state.mode !== 'explorer' || e.target !== renderer.domElement) {
+          tooltipEl.classList.add('hidden');
+          return;
+        }
+
+        const hit = updateRaycaster(e.clientX, e.clientY);
+        if (hit && hit.userData && hit.userData.id) {
+          hoveredObjectId = hit.userData.id;
+          renderer.domElement.style.cursor = 'pointer';
+          tooltipName.textContent = hit.userData.name;
+          tooltipKind.textContent = hit.userData.kind === 'planet' ? 'MAJOR TOPIC' : 'SUBTOPIC NODE';
+          tooltipEl.style.left = `${e.clientX}px`;
+          tooltipEl.style.top = `${e.clientY}px`;
+          tooltipEl.classList.remove('hidden');
+        } else {
+          hoveredObjectId = null;
+          renderer.domElement.style.cursor = 'grab';
+          tooltipEl.classList.add('hidden');
+        }
+      });
+
+      window.addEventListener('pointerup', () => {
+        camCtrl.isDragging = false;
+      });
+
+      renderer.domElement.addEventListener('click', (e) => {
+        if (state.mode !== 'explorer' || camCtrl.dragMoved) return;
+        const hit = updateRaycaster(e.clientX, e.clientY);
+        if (hit && hit.userData && hit.userData.id) {
+          selectObject(hit.userData.id, false);
+        }
+      });
+
+      renderer.domElement.addEventListener('dblclick', (e) => {
+        if (state.mode !== 'explorer') return;
+        const hit = updateRaycaster(e.clientX, e.clientY);
+        if (hit && hit.userData && hit.userData.id) {
+          selectObject(hit.userData.id, true);
+        } else {
+          resetCameraToFullUniverse();
+        }
+      });
+
+      renderer.domElement.addEventListener('wheel', (e) => {
+        if (state.mode !== 'explorer') return;
+        e.preventDefault();
+        camCtrl.targetRadius = Math.max(7, Math.min(110, camCtrl.targetRadius + e.deltaY * 0.035));
+      }, { passive: false });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      // Main Animation Loop
+      let animFrameId = 0;
+      const clock = new THREE.Clock();
+
+      function animate() {
+        animFrameId = requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.05);
+
+        // Gentle starfield drift
+        starField.rotation.y += dt * 0.008;
+
+        // Ambient camera rotation on landing page
+        if (state.mode === 'landing') {
+          camCtrl.targetTheta += dt * 0.07;
+        }
+
+        // Orbital updates
+        for (const p of planetEntries) {
+          if (state.orbitEnabled) {
+            p.angle += p.speed * dt;
+            p.group.position.x = Math.cos(p.angle) * p.orbitRadius;
+            p.group.position.z = Math.sin(p.angle) * p.orbitRadius;
+          }
+          p.mesh.rotation.y += dt * 0.16;
+
+          for (const m of p.moons) {
+            if (state.orbitEnabled) {
+              m.angle += m.speed * dt;
+              m.mesh.position.x = Math.cos(m.angle) * m.orbitRadius;
+              m.mesh.position.z = Math.sin(m.angle) * m.orbitRadius;
+              const posAttr = m.tether.geometry.attributes.position;
+              posAttr.setXYZ(1, m.mesh.position.x, m.mesh.position.y, m.mesh.position.z);
+              posAttr.needsUpdate = true;
+            }
+          }
+        }
+
+        // Update inter-planet relationship line vertices
+        for (const rl of relationshipLines) {
+          const s = planetEntries.find(p => p.id === rl.sourceId);
+          const t = planetEntries.find(p => p.id === rl.targetId);
+          if (s && t) {
+            const attr = rl.line.geometry.attributes.position;
+            attr.setXYZ(0, s.group.position.x, s.group.position.y, s.group.position.z);
+            attr.setXYZ(1, t.group.position.x, t.group.position.y, t.group.position.z);
+            attr.needsUpdate = true;
+          }
+        }
+
+        // Follow focused object smoothly
+        if (camCtrl.focusObjectId) {
+          const info = getObjectWorldPosition(camCtrl.focusObjectId);
+          if (info) camCtrl.targetLookAt.copy(info.pos);
+        }
+
+        // Position selection halo
+        if (selectionHalo && state.selectedObjectId) {
+          const info = getObjectWorldPosition(state.selectedObjectId);
+          if (info) {
+            selectionHalo.visible = true;
+            selectionHalo.position.copy(info.pos);
+            selectionHalo.scale.setScalar(info.radius * 0.95);
+            selectionHalo.lookAt(camera.position);
+          } else {
+            selectionHalo.visible = false;
+          }
+        } else if (selectionHalo) {
+          selectionHalo.visible = false;
+        }
+
+        // Smooth camera damping
+        const lerpFactor = 1 - Math.exp(-6.5 * dt);
+        camCtrl.theta += (camCtrl.targetTheta - camCtrl.theta) * lerpFactor;
+        camCtrl.phi += (camCtrl.targetPhi - camCtrl.phi) * lerpFactor;
+        camCtrl.radius += (camCtrl.targetRadius - camCtrl.radius) * lerpFactor;
+        camCtrl.lookAt.lerp(camCtrl.targetLookAt, lerpFactor);
+
+        camera.position.x = camCtrl.lookAt.x + camCtrl.radius * Math.sin(camCtrl.phi) * Math.cos(camCtrl.theta);
+        camera.position.y = camCtrl.lookAt.y + camCtrl.radius * Math.cos(camCtrl.phi);
+        camera.position.z = camCtrl.lookAt.z + camCtrl.radius * Math.sin(camCtrl.phi) * Math.sin(camCtrl.theta);
+        camera.lookAt(camCtrl.lookAt);
+
+        renderer.render(scene, camera);
+      }
+
+      // =====================================================================
+      // 4. UI CONTROLLERS & INTERACTIONS
+      // =====================================================================
+      let toastTimer = null;
+      function showToast(msg) {
+        const el = document.getElementById('toast');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.add('hidden'), 2800);
+      }
+
+      function enterMode(mode) {
+        state.mode = mode;
+        const landing = document.getElementById('landing-overlay');
+        const hud = document.getElementById('explorer-hud');
+        const navSearch = document.getElementById('nav-explorer-bar');
+        const btnStudio = document.getElementById('btn-nav-studio');
+        const btnAi = document.getElementById('btn-nav-ai');
+        const btnHist = document.getElementById('btn-nav-history');
+
+        if (mode === 'landing') {
+          landing.classList.remove('hidden');
+          hud.classList.add('hidden');
+          navSearch.classList.add('hidden');
+          navSearch.classList.remove('flex');
+          btnStudio.classList.add('hidden');
+          btnAi.classList.add('hidden');
+          btnHist.classList.add('hidden');
+          closeRightDrawers();
+          closeStudioDrawer();
+          resetCameraToFullUniverse();
+        } else {
+          landing.classList.add('hidden');
+          hud.classList.remove('hidden');
+          navSearch.classList.remove('hidden');
+          navSearch.classList.add('flex');
+          btnStudio.classList.remove('hidden');
+          btnAi.classList.remove('hidden');
+          btnHist.classList.remove('hidden');
+          updateHudStats();
+        }
+      }
+
+      function updateHudStats() {
+        const u = getActiveUniverse();
+        const subCount = u.planets.reduce((acc, p) => acc + (p.children ? p.children.length : 0), 0);
+        document.getElementById('hud-universe-name').textContent = u.name;
+        document.getElementById('hud-universe-stats').textContent =
+          `${u.planets.length} planets · ${subCount} subtopics · ${(u.relationships || []).length} links`;
+        const favBtn = document.getElementById('btn-favorite-universe');
+        favBtn.classList.toggle('text-amber-400', Boolean(u.favorite));
+        favBtn.classList.toggle('text-nexus-muted', !u.favorite);
+      }
+
+      // Find planet or subtopic record
+      function findNodeInUniverse(universe, objectId) {
+        for (const p of universe.planets) {
+          if (p.id === objectId) return { kind: 'planet', node: p, parent: null };
+          for (const c of p.children || []) {
+            if (c.id === objectId) return { kind: 'subtopic', node: c, parent: p };
+          }
+        }
+        return null;
+      }
+
+      function closeRightDrawers() {
+        document.getElementById('planet-panel').classList.add('hidden');
+        document.getElementById('planet-panel').classList.remove('flex');
+        document.getElementById('ai-drawer').classList.add('hidden');
+        document.getElementById('ai-drawer').classList.remove('flex');
+        state.aiOpen = false;
+      }
+
+      function closeStudioDrawer() {
+        document.getElementById('studio-drawer').classList.add('hidden');
+        document.getElementById('studio-drawer').classList.remove('flex');
+        state.studioOpen = false;
+      }
+
+      function selectObject(objectId, shouldFocus) {
+        const u = getActiveUniverse();
+        const found = findNodeInUniverse(u, objectId);
+        if (!found) return;
+
+        state.selectedObjectId = objectId;
+        if (shouldFocus) focusCameraOnObject(objectId);
+
+        renderPlanetPanel(found);
+        renderStudioEditor();
+
+        // Open Planet Panel (if AI drawer isn't currently active)
+        if (!state.aiOpen) {
+          const panel = document.getElementById('planet-panel');
+          panel.classList.remove('hidden');
+          panel.classList.add('flex');
+        } else {
+          updateAiContextHeader();
+        }
+      }
+
+      function renderPlanetPanel(found) {
+        const u = getActiveUniverse();
+        const { kind, node, parent } = found;
+        const color = kind === 'planet' ? node.color : parent.color;
+
+        document.getElementById('panel-color-dot').style.backgroundColor = color;
+        document.getElementById('panel-kind-badge').textContent =
+          kind === 'planet' ? 'MAJOR TOPIC PLANET' : `SUBTOPIC OF ${parent.name.toUpperCase()}`;
+        document.getElementById('panel-title').textContent = node.name;
+        document.getElementById('panel-description').textContent = node.description;
+
+        // Concepts
+        const conceptsEl = document.getElementById('panel-concepts');
+        const concepts = kind === 'planet' ? (node.concepts || []) : (parent.concepts || []).slice(0, 3);
+        conceptsEl.innerHTML = concepts
+          .map(c => `<span class="border border-white/10 bg-white/[0.04] px-2 py-0.5 font-mono text-[10px] text-white/85">${escapeHtml(c)}</span>`)
+          .join('');
+
+        // Subtopics
+        const subSection = document.getElementById('panel-subtopics-section');
+        const subList = document.getElementById('panel-subtopics-list');
+        if (kind === 'planet') {
+          subSection.classList.remove('hidden');
+          const children = node.children || [];
+          document.getElementById('panel-subtopics-count').textContent = `${children.length} nodes`;
+          subList.innerHTML = children.length
+            ? children.map(c => `
+                <button type="button" data-jump-id="${escapeHtml(c.id)}" class="flex w-full items-center justify-between border border-white/[0.07] bg-white/[0.02] px-2.5 py-2 text-left transition hover:border-nexus-cyan/45 hover:bg-white/[0.05]">
+                  <span class="font-medium text-white">${escapeHtml(c.name)}</span>
+                  <span class="font-mono text-[10px] text-nexus-cyan">Focus →</span>
+                </button>
+              `).join('')
+            : '<div class="text-nexus-muted">No subtopics yet. Click Expand Topic to generate orbital nodes.</div>';
+        } else {
+          subSection.classList.add('hidden');
+        }
+
+        // Connections
+        const connSection = document.getElementById('panel-connections-section');
+        const connList = document.getElementById('panel-connections-list');
+        const targetPlanetId = kind === 'planet' ? node.id : parent.id;
+        const rels = (u.relationships || []).filter(r => r.sourceId === targetPlanetId || r.targetId === targetPlanetId);
+
+        if (rels.length > 0) {
+          connSection.classList.remove('hidden');
+          connList.innerHTML = rels.map(r => {
+            const otherId = r.sourceId === targetPlanetId ? r.targetId : r.sourceId;
+            const other = u.planets.find(p => p.id === otherId);
+            if (!other) return '';
+            return `
+              <button type="button" data-jump-id="${escapeHtml(other.id)}" class="flex w-full items-center justify-between border border-white/[0.07] bg-white/[0.02] px-2.5 py-1.5 text-left transition hover:border-nexus-blue/45 hover:bg-white/[0.05]">
+                <span class="flex items-center gap-2">
+                  <span class="h-2 w-2 rounded-full" style="background:${other.color}"></span>
+                  <span class="text-white">${escapeHtml(other.name)}</span>
+                </span>
+                <span class="font-mono text-[10px] text-nexus-muted">${escapeHtml(r.label)}</span>
+              </button>
+            `;
+          }).join('');
+        } else {
+          connSection.classList.add('hidden');
+        }
+
+        // AI Synthesis
+        document.getElementById('panel-ai-explanation').textContent =
+          kind === 'planet'
+            ? (node.aiExplanation || node.description)
+            : `${node.name} is a specialized orbital concept within ${parent.name}. ${node.description}`;
+
+        // Bind jump buttons
+        document.querySelectorAll('[data-jump-id]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            selectObject(btn.getAttribute('data-jump-id'), true);
+          });
+        });
+      }
+
+      // Expand Topic (adds 2 validated subtopic nodes in real time)
+      function expandSelectedTopic(customFocusName) {
+        const u = getActiveUniverse();
+        const found = findNodeInUniverse(u, state.selectedObjectId);
+        const targetPlanet = found ? (found.kind === 'planet' ? found.node : found.parent) : u.planets[0];
+        if (!targetPlanet) return null;
+
+        pushUndoSnapshot(`Expanded ${targetPlanet.name}`);
+
+        const topicSeed = customFocusName || targetPlanet.name;
+        const existingNames = new Set((targetPlanet.children || []).map(c => c.name.toLowerCase()));
+        const templates = [
+          { name: `${topicSeed} Mechanics`, desc: `Underlying operational dynamics and structural drivers of ${topicSeed}.` },
+          { name: `Applied ${topicSeed}`, desc: `Real-world implementations, case studies, and measurable impact of ${topicSeed}.` },
+          { name: `${topicSeed} Frontiers`, desc: `Emerging research and next-generation directions evolving ${topicSeed}.` },
+          { name: `${topicSeed} Trade-offs`, desc: `Core constraints, bottlenecks, and design tensions within ${topicSeed}.` }
+        ];
+
+        const added = [];
+        for (const tpl of templates) {
+          if (added.length >= 2) break;
+          if (!existingNames.has(tpl.name.toLowerCase())) {
+            const newNode = {
+              id: `${targetPlanet.id}-exp-${Date.now()}-${added.length}`,
+              name: tpl.name,
+              description: tpl.desc
+            };
+            targetPlanet.children = targetPlanet.children || [];
+            targetPlanet.children.push(newNode);
+            added.push(newNode);
+          }
+        }
+
+        persistUniverses();
+        buildUniverseScene(u);
+        selectObject(targetPlanet.id, true);
+        showToast(`Added ${added.length} new orbital nodes to ${targetPlanet.name}`);
+        return { planet: targetPlanet, added };
+      }
+
+      // =====================================================================
+      // 5. CONTEXTUAL AI ASSISTANT + VOICE SUPPORT
+      // =====================================================================
+      function openAiDrawer() {
+        document.getElementById('planet-panel').classList.add('hidden');
+        document.getElementById('planet-panel').classList.remove('flex');
+        const drawer = document.getElementById('ai-drawer');
+        drawer.classList.remove('hidden');
+        drawer.classList.add('flex');
+        state.aiOpen = true;
+        updateAiContextHeader();
+        renderAiMessages();
+      }
+
+      function updateAiContextHeader() {
+        const u = getActiveUniverse();
+        const found = state.selectedObjectId ? findNodeInUniverse(u, state.selectedObjectId) : null;
+        document.getElementById('ai-context-label').textContent = found
+          ? `${u.name} → ${found.node.name}`
+          : `${u.name} (Universe Overview)`;
+
+        const quickEl = document.getElementById('ai-quick-prompts');
+        const subject = found ? found.node.name : u.name;
+        const prompts = [
+          `Explain ${subject}`,
+          `Expand ${subject}`,
+          `How does ${subject} connect?`,
+          `Summarize ${u.name}`
+        ];
+        quickEl.innerHTML = prompts.map(p =>
+          `<button type="button" data-ai-quick="${escapeHtml(p)}" class="shrink-0 border border-white/10 bg-white/[0.03] px-2.5 py-1 text-[11px] text-nexus-muted transition hover:border-nexus-blue/50 hover:text-white">${escapeHtml(p)}</button>`
+        ).join('');
+        quickEl.querySelectorAll('[data-ai-quick]').forEach(btn => {
+          btn.addEventListener('click', () => handleAiUserMessage(btn.getAttribute('data-ai-quick')));
+        });
+      }
+
+      function renderAiMessages() {
+        const u = getActiveUniverse();
+        if (!state.conversations[u.id]) {
+          state.conversations[u.id] = [
+            {
+              role: 'assistant',
+              content: `Welcome to **${u.name}**. Select any planet or ask a question — I can explain concepts, trace connections, summarize the universe, or expand topics directly into 3D orbit.`
+            }
+          ];
+        }
+        const list = state.conversations[u.id];
+        const containerEl = document.getElementById('ai-messages');
+        containerEl.innerHTML = list.map(m => {
+          const isUser = m.role === 'user';
+          const formatted = escapeHtml(m.content).replace(/\*\*(.+?)\*\*/g, '<strong class="text-white font-semibold">$1</strong>');
+          return `
+            <div class="flex ${isUser ? 'justify-end' : 'justify-start'}">
+              <div class="${isUser
+                ? 'max-w-[85%] border border-nexus-blue/40 bg-nexus-blue/15 text-white'
+                : 'max-w-[92%] border border-white/[0.08] bg-white/[0.03] text-white/85'} px-3 py-2.5 leading-relaxed">
+                ${formatted}
+              </div>
+            </div>
+          `;
+        }).join('');
+        containerEl.scrollTop = containerEl.scrollHeight;
+      }
+
+      function generateContextualReply(userText) {
+        const u = getActiveUniverse();
+        const found = state.selectedObjectId ? findNodeInUniverse(u, state.selectedObjectId) : null;
+        const lower = userText.toLowerCase();
+
+        // Actionable Expand command
+        if (/^expand\b/i.test(lower)) {
+          const topicArg = userText.replace(/^expand\s+/i, '').trim();
+          const res = expandSelectedTopic(topicArg || (found ? found.node.name : u.planets[0]?.name));
+          if (res && res.added.length) {
+            return `Expanded **${res.planet.name}** in the 3D universe. Added **${res.added.map(a => a.name).join('** and **')}** into live orbit and saved a new version snapshot.`;
+          }
+          return `That topic is already expanded with its core orbital branches. Try selecting another planet or adding a custom planet in Creator Studio.`;
+        }
+
+        // Summarize universe
+        if (lower.includes('summar')) {
+          const names = u.planets.map(p => p.name).join(', ');
+          return `**${u.name}** organizes ${u.planets.length} major planets (${names}) linked by ${(u.relationships || []).length} relationships. ${u.description}`;
+        }
+
+        // Connections
+        if (lower.includes('connect') || lower.includes('relation') || lower.includes('link')) {
+          const targetPlanet = found ? (found.kind === 'planet' ? found.node : found.parent) : u.planets[0];
+          const rels = (u.relationships || []).filter(r => r.sourceId === targetPlanet.id || r.targetId === targetPlanet.id);
+          if (!rels.length) return `**${targetPlanet.name}** currently orbits independently. You can link it to another planet inside **Creator Studio**.`;
+          const desc = rels.map(r => {
+            const otherId = r.sourceId === targetPlanet.id ? r.targetId : r.sourceId;
+            const other = u.planets.find(p => p.id === otherId);
+            return other ? `${r.label} **${other.name}**` : '';
+          }).filter(Boolean).join('; ');
+          return `**${targetPlanet.name}** connects across this universe: ${desc}.`;
+        }
+
+        // Planet-specific explanation
+        if (found) {
+          if (found.kind === 'planet') {
+            const subs = (found.node.children || []).map(c => c.name).join(', ');
+            return `**${found.node.name}**: ${found.node.aiExplanation || found.node.description} Its orbiting subtopics include ${subs || 'none yet'}. Type **Expand ${found.node.name}** to generate additional nodes.`;
+          }
+          return `**${found.node.name}** orbits **${found.parent.name}**. ${found.node.description} Together with ${found.parent.name}'s core concepts (${(found.parent.concepts || []).join(', ')}), it anchors this region of **${u.name}**.`;
+        }
+
+        // Match any planet mentioned in prompt
+        const mentioned = u.planets.find(p => lower.includes(p.name.toLowerCase()));
+        if (mentioned) {
+          selectObject(mentioned.id, true);
+          return `Focusing on **${mentioned.name}**: ${mentioned.aiExplanation || mentioned.description}`;
+        }
+
+        return `In **${u.name}**, your query touches across ${u.planets.slice(0, 3).map(p => `**${p.name}**`).join(', ')}. Click any planet to lock context, or type **Expand [topic]** to grow the 3D graph.`;
+      }
+
+      function handleAiUserMessage(text) {
+        const trimmed = text.trim();
+        if (!trimmed) return;
+        const u = getActiveUniverse();
+        if (!state.conversations[u.id]) state.conversations[u.id] = [];
+        state.conversations[u.id].push({ role: 'user', content: trimmed });
+        const reply = generateContextualReply(trimmed);
+        state.conversations[u.id].push({ role: 'assistant', content: reply });
+        renderAiMessages();
+
+        if (state.voiceSpeak && 'speechSynthesis' in window) {
+          try {
+            window.speechSynthesis.cancel();
+            const utter = new SpeechSynthesisUtterance(reply.replace(/\*\*/g, ''));
+            utter.rate = 1.05;
+            window.speechSynthesis.speak(utter);
+          } catch (_) {}
+        }
+      }
+
+      // =====================================================================
+      // 6. UNIVERSE CREATOR STUDIO (Edit, Add, Delete, Connect, Undo/Redo)
+      // =====================================================================
+      function updateUndoRedoButtons() {
+        document.getElementById('btn-studio-undo').disabled = state.undoStack.length === 0;
+        document.getElementById('btn-studio-redo').disabled = state.redoStack.length === 0;
+      }
+
+      function renderStudioEditor() {
+        const u = getActiveUniverse();
+        const found = state.selectedObjectId ? findNodeInUniverse(u, state.selectedObjectId) : null;
+        const noSel = document.getElementById('studio-no-selection');
+        const fields = document.getElementById('studio-edit-fields');
+
+        if (found && found.kind === 'planet') {
+          noSel.classList.add('hidden');
+          fields.classList.remove('hidden');
+          document.getElementById('studio-name-input').value = found.node.name;
+          document.getElementById('studio-desc-input').value = found.node.description;
+
+          const swatches = document.getElementById('studio-color-swatches');
+          swatches.innerHTML = COSMIC_COLORS.map(hex => `
+            <button type="button" data-color="${hex}" class="h-5 w-5 rounded-full border-2 transition ${found.node.color === hex ? 'border-white scale-110' : 'border-transparent opacity-75 hover:opacity-100'}" style="background:${hex}"></button>
+          `).join('');
+          swatches.querySelectorAll('[data-color]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              pushUndoSnapshot(`Recolored ${found.node.name}`);
+              found.node.color = btn.getAttribute('data-color');
+              persistUniverses();
+              buildUniverseScene(u);
+              renderPlanetPanel(found);
+              renderStudioEditor();
+            });
+          });
+        } else {
+          noSel.classList.remove('hidden');
+          fields.classList.add('hidden');
+        }
+
+        // Populate relationship selectors
+        const opts = u.planets.map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`).join('');
+        document.getElementById('studio-rel-source').innerHTML = opts;
+        document.getElementById('studio-rel-target').innerHTML = opts;
+        if (u.planets.length > 1) {
+          document.getElementById('studio-rel-target').selectedIndex = 1;
+        }
+
+        // List existing relationships with disconnect button
+        const relList = document.getElementById('studio-rel-list');
+        relList.innerHTML = (u.relationships || []).map(r => {
+          const s = u.planets.find(p => p.id === r.sourceId);
+          const t = u.planets.find(p => p.id === r.targetId);
+          if (!s || !t) return '';
+          return `
+            <div class="flex items-center justify-between border border-white/[0.06] bg-void/60 px-2 py-1 text-[11px]">
+              <span class="truncate text-nexus-muted"><span class="text-white">${escapeHtml(s.name)}</span> → <span class="text-white">${escapeHtml(t.name)}</span></span>
+              <button type="button" data-del-rel="${escapeHtml(r.id)}" class="ml-2 text-rose-400 hover:text-rose-300" title="Disconnect">×</button>
+            </div>
+          `;
+        }).join('');
+
+        relList.querySelectorAll('[data-del-rel]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const relId = btn.getAttribute('data-del-rel');
+            pushUndoSnapshot('Removed relationship');
+            u.relationships = (u.relationships || []).filter(r => r.id !== relId);
+            persistUniverses();
+            buildUniverseScene(u);
+            renderStudioEditor();
+            showToast('Relationship disconnected');
+          });
+        });
+
+        updateUndoRedoButtons();
+      }
+
+      // =====================================================================
+      // 7. UNIVERSE GENERATION FLOW (Real Stage Progression)
+      // =====================================================================
+      function launchGeneration(promptText) {
+        const trimmed = promptText.trim();
+        if (trimmed.length < 3) {
+          const err = document.getElementById('landing-error');
+          err.textContent = 'Enter at least 3 characters to synthesize a universe.';
+          err.classList.remove('hidden');
+          return;
+        }
+        document.getElementById('landing-error').classList.add('hidden');
+
+        // Check if prompt matches a rich seed universe
+        const lower = trimmed.toLowerCase();
+        const existingSeed = state.universes.find(u =>
+          lower === u.name.toLowerCase() || lower === u.prompt.toLowerCase()
+        );
+
+        const overlay = document.getElementById('generation-overlay');
+        const stagesEl = document.getElementById('gen-stages');
+        const titleEl = document.getElementById('gen-title');
+        overlay.classList.remove('hidden');
+        overlay.classList.add('flex');
+        titleEl.textContent = existingSeed ? `Loading ${existingSeed.name}...` : `Synthesizing "${trimmed.slice(0, 38)}"...`;
+
+        const stageLabels = [
+          'Validating conceptual prompt & schema',
+          'Structuring major topic planets & subtopics',
+          'Mapping inter-node relationships',
+          'Computing 3D orbital harmonics & lighting'
+        ];
+
+        let currentStep = 0;
+        function renderStages() {
+          stagesEl.innerHTML = stageLabels.map((lbl, idx) => {
+            const done = idx < currentStep;
+            const active = idx === currentStep;
+            return `
+              <div class="flex items-center gap-2.5 ${done ? 'text-nexus-cyan' : active ? 'text-white' : 'text-nexus-muted/50'}">
+                <span>${done ? '✓' : active ? '▸' : '·'}</span>
+                <span>${lbl}</span>
+              </div>
+            `;
+          }).join('');
+        }
+        renderStages();
+
+        const stepInterval = setInterval(() => {
+          currentStep++;
+          renderStages();
+          if (currentStep >= stageLabels.length) {
+            clearInterval(stepInterval);
+            let targetUniverse = existingSeed;
+            if (!targetUniverse) {
+              targetUniverse = synthesizeCustomUniverse(trimmed);
+              state.universes.unshift(targetUniverse);
+              persistUniverses();
+            }
+            activateUniverse(targetUniverse.id);
+            recordVersion(targetUniverse, 'Synthesized from prompt');
+            overlay.classList.add('hidden');
+            overlay.classList.remove('flex');
+            enterMode('explorer');
+            showToast(`Entered ${targetUniverse.name}`);
+          }
+        }, 260);
+      }
+
+      function activateUniverse(universeId) {
+        state.activeUniverseId = universeId;
+        state.selectedObjectId = null;
+        state.undoStack = [];
+        state.redoStack = [];
+        closeRightDrawers();
+        const u = getActiveUniverse();
+        buildUniverseScene(u);
+        resetCameraToFullUniverse();
+        renderStudioEditor();
+        updateHudStats();
+      }
+
+      // =====================================================================
+      // 8. MULTIVERSE & TIME TRAVEL MODALS
+      // =====================================================================
+      function openModal(modalId) {
+        const backdrop = document.getElementById('modal-backdrop');
+        document.getElementById('multiverse-modal').classList.add('hidden');
+        document.getElementById('history-modal').classList.add('hidden');
+        document.getElementById(modalId).classList.remove('hidden');
+        backdrop.classList.remove('hidden');
+        backdrop.classList.add('flex');
+      }
+
+      function closeModals() {
+        document.getElementById('modal-backdrop').classList.add('hidden');
+        document.getElementById('modal-backdrop').classList.remove('flex');
+      }
+
+      function renderMultiverseModal() {
+        const grid = document.getElementById('multiverse-grid');
+        grid.innerHTML = state.universes.map(u => {
+          const isActive = u.id === state.activeUniverseId;
+          return `
+            <button type="button" data-open-univ="${escapeHtml(u.id)}" class="group flex flex-col justify-between border ${isActive ? 'border-nexus-blue/60 bg-nexus-blue/10' : 'border-white/10 bg-white/[0.02]'} p-4 text-left transition hover:border-nexus-cyan/50 hover:bg-white/[0.05]">
+              <div>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="font-display text-sm font-semibold text-white group-hover:text-nexus-cyan">${escapeHtml(u.name)}</span>
+                  <span class="font-mono text-[10px] uppercase tracking-wider text-nexus-muted">${escapeHtml(u.tag || 'Universe')}</span>
+                </div>
+                <p class="mt-1.5 line-clamp-2 text-xs text-nexus-muted">${escapeHtml(u.description)}</p>
+              </div>
+              <div class="mt-3 flex items-center justify-between font-mono text-[10px] text-nexus-muted">
+                <span>${u.planets.length} planets · ${(u.relationships || []).length} links</span>
+                <span class="${isActive ? 'text-nexus-blue' : 'text-white/70'}">${isActive ? 'ACTIVE' : 'ENTER →'}</span>
+              </div>
+            </button>
+          `;
+        }).join('');
+
+        grid.querySelectorAll('[data-open-univ]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            activateUniverse(btn.getAttribute('data-open-univ'));
+            closeModals();
+            enterMode('explorer');
+          });
+        });
+      }
+
+      function renderHistoryModal() {
+        const u = getActiveUniverse();
+        const versions = state.versions[u.id] || [];
+        const list = document.getElementById('history-list');
+        if (!versions.length) {
+          list.innerHTML = '<div class="text-nexus-muted">No snapshots recorded yet. Edit or expand a topic to create a restore point.</div>';
+          return;
+        }
+        list.innerHTML = versions.map((v, idx) => `
+          <div class="flex items-center justify-between border border-white/[0.08] bg-white/[0.02] p-3">
+            <div>
+              <div class="font-medium text-white">v${v.version} — ${escapeHtml(v.label)}</div>
+              <div class="mt-0.5 font-mono text-[10px] text-nexus-muted">${v.timestamp} · ${v.snapshot.planets.length} planets</div>
+            </div>
+            <button type="button" data-restore-idx="${idx}" class="border border-nexus-violet/45 bg-nexus-violet/15 px-3 py-1.5 font-mono text-[11px] text-white transition hover:bg-nexus-violet/30">
+              Restore
+            </button>
+          </div>
+        `).join('');
+
+        list.querySelectorAll('[data-restore-idx]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const idx = Number(btn.getAttribute('data-restore-idx'));
+            const snap = versions[idx].snapshot;
+            const uIdx = state.universes.findIndex(item => item.id === u.id);
+            if (uIdx !== -1) {
+              state.universes[uIdx] = cloneUniverse(snap);
+              persistUniverses();
+              buildUniverseScene(state.universes[uIdx]);
+              renderStudioEditor();
+              closeModals();
+              showToast(`Restored version v${versions[idx].version}`);
+            }
+          });
+        });
+      }
+
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      // =====================================================================
+      // 9. EVENT WIRING
+      // =====================================================================
+      // Example Prompts Grid
+      const exampleGrid = document.getElementById('example-prompts-grid');
+      exampleGrid.innerHTML = SEED_UNIVERSES.map(u => `
+        <button type="button" data-seed-prompt="${escapeHtml(u.prompt)}" class="glass-subtle group flex flex-col justify-between p-3.5 text-left transition hover:border-nexus-blue/50 hover:bg-charcoal-900/90">
+          <div class="flex items-center justify-between">
+            <span class="font-display text-xs font-semibold text-white group-hover:text-nexus-blue transition">${escapeHtml(u.name)}</span>
+            <span class="font-mono text-[9px] uppercase tracking-wider text-nexus-muted">${escapeHtml(u.tag)}</span>
+          </div>
+          <p class="mt-1.5 line-clamp-2 text-[11px] leading-relaxed text-nexus-muted">${escapeHtml(u.description)}</p>
+        </button>
+      `).join('');
+
+      exampleGrid.querySelectorAll('[data-seed-prompt]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const p = btn.getAttribute('data-seed-prompt');
+          document.getElementById('landing-prompt-input').value = p;
+          launchGeneration(p);
+        });
+      });
+
+      document.getElementById('landing-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        launchGeneration(document.getElementById('landing-prompt-input').value);
+      });
+
+      document.getElementById('btn-explore-now').addEventListener('click', () => enterMode('explorer'));
+      document.getElementById('btn-home').addEventListener('click', () => enterMode('landing'));
+      document.getElementById('btn-nav-create').addEventListener('click', () => {
+        enterMode('landing');
+        setTimeout(() => document.getElementById('landing-prompt-input').focus(), 80);
+      });
+
+      document.getElementById('btn-nav-multiverse').addEventListener('click', () => {
+        renderMultiverseModal();
+        openModal('multiverse-modal');
+      });
+      document.getElementById('btn-close-multiverse').addEventListener('click', closeModals);
+
+      document.getElementById('btn-nav-history').addEventListener('click', () => {
+        renderHistoryModal();
+        openModal('history-modal');
+      });
+      document.getElementById('btn-close-history').addEventListener('click', closeModals);
+
+      document.getElementById('modal-backdrop').addEventListener('click', (e) => {
+        if (e.target.id === 'modal-backdrop') closeModals();
+      });
+
+      // Studio toggle
+      document.getElementById('btn-nav-studio').addEventListener('click', () => {
+        const drawer = document.getElementById('studio-drawer');
+        state.studioOpen = !state.studioOpen;
+        drawer.classList.toggle('hidden', !state.studioOpen);
+        drawer.classList.toggle('flex', state.studioOpen);
+        if (state.studioOpen) renderStudioEditor();
+      });
+      document.getElementById('btn-studio-close').addEventListener('click', closeStudioDrawer);
+
+      // AI Guide toggle
+      document.getElementById('btn-nav-ai').addEventListener('click', () => {
+        if (state.aiOpen) closeRightDrawers();
+        else openAiDrawer();
+      });
+      document.getElementById('btn-ai-close').addEventListener('click', closeRightDrawers);
+      document.getElementById('btn-ask-ai').addEventListener('click', openAiDrawer);
+
+      // Planet panel controls
+      document.getElementById('btn-panel-close').addEventListener('click', closeRightDrawers);
+      document.getElementById('btn-panel-focus').addEventListener('click', () => {
+        if (state.selectedObjectId) focusCameraOnObject(state.selectedObjectId);
+      });
+      document.getElementById('btn-expand-topic').addEventListener('click', () => expandSelectedTopic());
+
+      // Camera HUD controls
+      document.getElementById('btn-cam-reset').addEventListener('click', resetCameraToFullUniverse);
+      document.getElementById('btn-cam-zoom-in').addEventListener('click', () => {
+        camCtrl.targetRadius = Math.max(7, camCtrl.targetRadius - 8);
+      });
+      document.getElementById('btn-cam-zoom-out').addEventListener('click', () => {
+        camCtrl.targetRadius = Math.min(110, camCtrl.targetRadius + 8);
+      });
+      document.getElementById('btn-toggle-orbit').addEventListener('click', () => {
+        state.orbitEnabled = !state.orbitEnabled;
+        document.getElementById('orbit-toggle-label').textContent = `Orbit: ${state.orbitEnabled ? 'On' : 'Off'}`;
+      });
+      document.getElementById('btn-toggle-lines').addEventListener('click', () => {
+        state.linksVisible = !state.linksVisible;
+        relationshipLines.forEach(rl => { rl.line.visible = state.linksVisible; });
+        document.getElementById('lines-toggle-label').textContent = `Links: ${state.linksVisible ? 'On' : 'Off'}`;
+      });
+
+      document.getElementById('btn-favorite-universe').addEventListener('click', () => {
+        const u = getActiveUniverse();
+        u.favorite = !u.favorite;
+        persistUniverses();
+        updateHudStats();
+        showToast(u.favorite ? `Starred ${u.name}` : `Removed ${u.name} from favorites`);
+      });
+
+      // AI Form & Voice
+      document.getElementById('ai-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const input = document.getElementById('ai-input');
+        handleAiUserMessage(input.value);
+        input.value = '';
+      });
+
+      document.getElementById('btn-voice-speak').addEventListener('click', (e) => {
+        state.voiceSpeak = !state.voiceSpeak;
+        e.currentTarget.classList.toggle('text-nexus-cyan', state.voiceSpeak);
+        showToast(state.voiceSpeak ? 'Spoken AI responses enabled' : 'Spoken AI responses muted');
+      });
+
+      document.getElementById('btn-voice-mic').addEventListener('click', () => {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          showToast('Voice input is not supported in this browser.');
+          return;
+        }
+        const rec = new SpeechRec();
+        rec.lang = 'en-US';
+        rec.onresult = (evt) => {
+          const transcript = evt.results[0][0].transcript;
+          document.getElementById('ai-input').value = transcript;
+          handleAiUserMessage(transcript);
+        };
+        rec.onerror = () => showToast('Voice capture cancelled or unavailable.');
+        rec.start();
+        showToast('Listening...');
+      });
+
+      // Studio actions
+      document.getElementById('btn-studio-apply').addEventListener('click', () => {
+        const u = getActiveUniverse();
+        const found = findNodeInUniverse(u, state.selectedObjectId);
+        if (!found || found.kind !== 'planet') return;
+        const newName = document.getElementById('studio-name-input').value.trim();
+        const newDesc = document.getElementById('studio-desc-input').value.trim();
+        if (!newName) return;
+        pushUndoSnapshot(`Edited ${found.node.name}`);
+        found.node.name = newName;
+        found.node.description = newDesc || found.node.description;
+        persistUniverses();
+        buildUniverseScene(u);
+        renderPlanetPanel(found);
+        renderStudioEditor();
+        showToast(`Saved ${newName}`);
+      });
+
+      document.getElementById('btn-studio-delete').addEventListener('click', () => {
+        const u = getActiveUniverse();
+        if (u.planets.length <= 1) {
+          showToast('A universe must retain at least one planet.');
+          return;
+        }
+        const idx = u.planets.findIndex(p => p.id === state.selectedObjectId);
+        if (idx === -1) return;
+        const removed = u.planets[idx];
+        pushUndoSnapshot(`Deleted ${removed.name}`);
+        u.planets.splice(idx, 1);
+        u.relationships = (u.relationships || []).filter(r => r.sourceId !== removed.id && r.targetId !== removed.id);
+        state.selectedObjectId = null;
+        persistUniverses();
+        buildUniverseScene(u);
+        closeRightDrawers();
+        renderStudioEditor();
+        showToast(`Removed ${removed.name}`);
+      });
+
+      document.getElementById('btn-studio-add-planet').addEventListener('click', () => {
+        const nameEl = document.getElementById('studio-new-name');
+        const descEl = document.getElementById('studio-new-desc');
+        const name = nameEl.value.trim();
+        if (name.length < 2) {
+          showToast('Enter a planet name first.');
+          return;
+        }
+        const u = getActiveUniverse();
+        pushUndoSnapshot(`Added planet ${name}`);
+        const newPlanet = {
+          id: `${slugify(name)}-${Date.now()}`,
+          name,
+          color: COSMIC_COLORS[u.planets.length % COSMIC_COLORS.length],
+          description: descEl.value.trim() || `Custom celestial topic exploring ${name}.`,
+          concepts: [name, 'Custom Node'],
+          aiExplanation: `${name} was added in Creator Studio and integrated into the orbital field of ${u.name}.`,
+          children: []
+        };
+        u.planets.push(newPlanet);
+        nameEl.value = '';
+        descEl.value = '';
+        persistUniverses();
+        buildUniverseScene(u);
+        selectObject(newPlanet.id, true);
+        renderStudioEditor();
+        showToast(`Added ${name} to orbit`);
+      });
+
+      document.getElementById('btn-studio-connect').addEventListener('click', () => {
+        const u = getActiveUniverse();
+        const sId = document.getElementById('studio-rel-source').value;
+        const tId = document.getElementById('studio-rel-target').value;
+        const label = document.getElementById('studio-rel-label').value.trim() || 'connects to';
+        if (!sId || !tId || sId === tId) {
+          showToast('Choose two distinct planets to connect.');
+          return;
+        }
+        pushUndoSnapshot('Connected planets');
+        u.relationships = u.relationships || [];
+        u.relationships.push({ id: 'rel-' + Date.now(), sourceId: sId, targetId: tId, label });
+        document.getElementById('studio-rel-label').value = '';
+        persistUniverses();
+        buildUniverseScene(u);
+        renderStudioEditor();
+        showToast('Relationship created');
+      });
+
+      document.getElementById('btn-studio-reorganize').addEventListener('click', () => {
+        const u = getActiveUniverse();
+        pushUndoSnapshot('Reorganized orbital harmonics');
+        u.planets.sort((a, b) => (b.children?.length || 0) - (a.children?.length || 0));
+        persistUniverses();
+        buildUniverseScene(u);
+        resetCameraToFullUniverse();
+        showToast('Orbital harmonics reorganized by density');
+      });
+
+      document.getElementById('btn-studio-undo').addEventListener('click', () => {
+        if (!state.undoStack.length) return;
+        const u = getActiveUniverse();
+        state.redoStack.push(cloneUniverse(u));
+        const prev = state.undoStack.pop();
+        const idx = state.universes.findIndex(item => item.id === u.id);
+        state.universes[idx] = prev;
+        persistUniverses();
+        buildUniverseScene(prev);
+        renderStudioEditor();
+        showToast('Undid last change');
+      });
+
+      document.getElementById('btn-studio-redo').addEventListener('click', () => {
+        if (!state.redoStack.length) return;
+        const u = getActiveUniverse();
+        state.undoStack.push(cloneUniverse(u));
+        const next = state.redoStack.pop();
+        const idx = state.universes.findIndex(item => item.id === u.id);
+        state.universes[idx] = next;
+        persistUniverses();
+        buildUniverseScene(next);
+        renderStudioEditor();
+        showToast('Redid change');
+      });
+
+      // Concept Search
+      const searchInput = document.getElementById('universe-search-input');
+      const searchDropdown = document.getElementById('search-results-dropdown');
+
+      searchInput.addEventListener('input', () => {
+        const q = searchInput.value.trim().toLowerCase();
+        if (!q) {
+          searchDropdown.classList.add('hidden');
+          return;
+        }
+        const u = getActiveUniverse();
+        const matches = [];
+        for (const p of u.planets) {
+          const haystack = `${p.name} ${p.description} ${(p.concepts || []).join(' ')}`.toLowerCase();
+          if (haystack.includes(q)) {
+            matches.push({ id: p.id, name: p.name, sub: 'Planet', color: p.color });
+          }
+          for (const c of p.children || []) {
+            if (`${c.name} ${c.description}`.toLowerCase().includes(q)) {
+              matches.push({ id: c.id, name: c.name, sub: `Subtopic · ${p.name}`, color: p.color });
+            }
+          }
+        }
+        if (!matches.length) {
+          searchDropdown.innerHTML = '<div class="p-3 text-xs text-nexus-muted">No matching celestial objects.</div>';
+        } else {
+          searchDropdown.innerHTML = matches.slice(0, 8).map(m => `
+            <button type="button" data-search-id="${escapeHtml(m.id)}" class="flex w-full items-center justify-between border-b border-white/[0.06] px-3 py-2 text-left text-xs hover:bg-white/[0.06]">
+              <span class="flex items-center gap-2">
+                <span class="h-2 w-2 rounded-full" style="background:${m.color}"></span>
+                <span class="text-white">${escapeHtml(m.name)}</span>
+              </span>
+              <span class="font-mono text-[10px] text-nexus-muted">${escapeHtml(m.sub)}</span>
+            </button>
+          `).join('');
+          searchDropdown.querySelectorAll('[data-search-id]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              selectObject(btn.getAttribute('data-search-id'), true);
+              searchDropdown.classList.add('hidden');
+              searchInput.value = '';
+            });
+          });
+        }
+        searchDropdown.classList.remove('hidden');
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!searchInput.contains(e.target) && !searchDropdown.contains(e.target)) {
+          searchDropdown.classList.add('hidden');
+        }
+      });
+
+      // Keyboard Shortcuts
+      window.addEventListener('keydown', (e) => {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (e.key === 'r' || e.key === 'R') resetCameraToFullUniverse();
+        if (e.key === 'Escape') {
+          closeModals();
+          closeRightDrawers();
+        }
+        if (e.key === '/' && state.mode === 'explorer') {
+          e.preventDefault();
+          searchInput.focus();
+        }
+      });
+
+      // Initialize Icons, Initial 3D Universe & Animation Loop
+      if (window.lucide) window.lucide.createIcons();
+      buildUniverseScene(getActiveUniverse());
+      animate();
+    })();
+  </script>
+</body>
+</html>
